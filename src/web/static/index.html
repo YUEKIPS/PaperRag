@@ -1,52 +1,77 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="session-token" content="__SESSION_TOKEN__" />
-    <title>Agentic Paper RAG — 本地问答</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <header class="top">
-      <h1>Agentic Paper RAG</h1>
-      <p class="subtitle">本地论文库问答（LangGraph Agentic 管线）</p>
-    </header>
-
-    <section id="health" class="health" aria-live="polite">正在检查服务状态…</section>
-
-    <main class="layout">
-      <section id="messages" class="messages" aria-label="对话"></section>
-
-      <aside class="side">
-        <section class="panel">
-          <h2>引用</h2>
-          <ul id="citations" class="citations"></ul>
-          <p id="citations-empty" class="muted">提问后将显示 paper_id、页码与 chunk。</p>
-        </section>
-
-        <details class="panel trace-panel" id="trace-panel">
-          <summary>Grade / Rewrite 轨迹</summary>
-          <dl id="grade-meta" class="meta-grid"></dl>
-          <h3 class="subhead">Trace 事件</h3>
-          <ol id="trace-list" class="trace-list"></ol>
-        </details>
-      </aside>
-    </main>
-
-    <footer class="composer">
-      <label for="query-input" class="sr-only">问题</label>
-      <textarea
-        id="query-input"
-        rows="3"
-        placeholder="输入关于 LLM / Agent / RAG 论文的问题…"
-      ></textarea>
-      <div class="composer-actions">
-        <button type="button" id="ask-btn">提问</button>
-        <span id="loading" class="loading hidden" aria-hidden="true">处理中…</span>
+<html lang="zh-CN" data-theme="ink">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper RAG</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="Sessions">
+      <header class="sidebar-brand">
+        <div class="brand-mark" aria-hidden="true">§</div>
+        <div class="brand-text">
+          <span class="brand-name">Paper RAG</span>
+          <span class="brand-sub">论文 Agentic 问答</span>
+        </div>
+      </header>
+      <div class="sidebar-actions">
+        <button type="button" class="btn btn-primary" id="btn-new-session">新建对话</button>
       </div>
-    </footer>
+      <nav class="session-list" id="session-list" aria-label="对话列表"></nav>
+      <footer class="sidebar-footer">
+        <div class="status-row" id="health-status">
+          <span class="status-dot" id="health-dot"></span>
+          <span class="status-text" id="health-text">检查中…</span>
+        </div>
+        <label class="theme-label" for="theme-select">主题</label>
+        <select id="theme-select" class="theme-select" aria-label="主题">
+          <option value="ink">Ink</option>
+          <option value="slate">Slate</option>
+          <option value="sand">Sand</option>
+        </select>
+      </footer>
+    </aside>
 
-    <script src="/static/app.js"></script>
-  </body>
+    <main class="main" id="main-pane">
+      <header class="main-header">
+        <h1 class="session-title" id="main-title">新对话</h1>
+        <div class="main-header-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-archive" title="归档">归档</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger" id="btn-delete" title="删除">删除</button>
+        </div>
+      </header>
+
+      <div class="messages" id="messages" role="log" aria-live="polite"></div>
+
+      <div class="progress-dock" id="progress-dock" hidden>
+        <div class="progress-bar"><span class="progress-fill" id="progress-fill"></span></div>
+        <p class="progress-label" id="progress-label">思考中…</p>
+        <ul class="progress-steps" id="progress-steps"></ul>
+      </div>
+
+      <form class="composer" id="composer-form">
+        <textarea
+          id="query-input"
+          class="composer-input"
+          rows="2"
+          placeholder="提问论文库… 例如：What is retrieval-augmented generation?"
+          autocomplete="off"
+        ></textarea>
+        <button type="submit" class="btn btn-primary composer-send" id="btn-send">发送</button>
+      </form>
+    </main>
+  </div>
+
+  <dialog class="inspector" id="inspector" aria-labelledby="inspector-title">
+    <header class="inspector-header">
+      <h2 id="inspector-title">回答详情</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="inspector-close" aria-label="关闭">✕</button>
+    </header>
+    <div class="inspector-body" id="inspector-body"></div>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
 </html>

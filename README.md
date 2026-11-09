@@ -81,22 +81,16 @@ python3 scripts/run_agentic.py --query "How do agentic RAG systems differ from s
 python3 scripts/eval_all.py --limit 5
 ```
 
-### 本地 Web 问答 UI（M4）
+### 本地 Web UI（论文问答）
 
-先完成 `build_index`，再在仓库根目录启动（仅绑定 `127.0.0.1`）：
+构建索引后可在本机浏览器使用多会话聊天界面（stdlib HTTP + 静态资源，**仅绑定 127.0.0.1**）：
 
 ```bash
-# 可选：仓库根目录 .env 会在启动时加载（不覆盖已有环境变量）
-export AGENT_GENERATOR=openai   # 可选；无 key 时仍为 stub
-export DEEPSEEK_API_KEY=...     # 或 OPENAI_API_KEY
-
-python3 scripts/run_web.py
-# 等价：python3 -m src.web
+python3 scripts/serve_web.py
+# 默认 http://127.0.0.1:8765/
 ```
 
-浏览器打开终端打印的地址（默认 `http://127.0.0.1:8765/`）。页面内含会话 token；`/api/*` 请求需携带响应头 `X-Session-Token`（前端已自动设置）。
-
-云端快照通常无 `data/index/`；本地需先跑 `download_pdfs` → `ingest` → `build_index` 后再提问。
+功能：左侧会话列表（持久化在 `data/web/sessions/`，已 gitignore）、Ink/Slate/Sand 主题、composer 进度与分阶段展示、回答详情（grade / rewrite / trace / citations）。API 需页面内注入的 session token；后端调用 `run_agentic_query`。
 
 详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
 Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)、[docs/reports/smoke_m3_llm_agentic.md](docs/reports/smoke_m3_llm_agentic.md)。

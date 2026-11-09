@@ -1,161 +1,342 @@
-"""Local stdlib HTTP server for the slim Paper RAG Q&A UI."""
-
 from __future__ import annotations
 
 import json
 import mimetypes
-import secrets
-import sys
+import re
+import threading
+from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
-from src.config import DEFAULT_CONFIG_PATH, REPO_ROOT
-from src.web.service import WebServiceError, ask_question, health_snapshot
+from src.agent.run import run_agentic_query
+from src.config import load_config, resolve_path
+from src.generate.llm import generator_mode, llm_endpoint_summary, resolve_api_key
+from src.web.security import host_allowed, new_session_token, origin_allowed, token_from_request
+from src.web.sessions import SessionStore
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-TOKEN_PLACEHOLDER = "__SESSION_TOKEN__"
-SESSION_HEADER = "X-Session-Token"
+API_PREFIX = "/api"
 
 
-class PaperRagWebHandler(BaseHTTPRequestHandler):
-    session_token: str = ""
-    config_path: Path = DEFAULT_CONFIG_PATH
+class PaperRagHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
 
-    def log_message(self, fmt: str, *args: Any) -> None:
-        sys.stderr.write("%s - - [%s] %s\n" % (self.client_address[0], self.log_date_time_string(), fmt % args))
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        handler_class: type[BaseHTTPRequestHandler],
+        *,
+        token: str,
+        config: dict[str, Any],
+        sessions: SessionStore,
+    ) -> None:
+        self.session_token = token
+        self.config = config
+        self.sessions = sessions
+        self._ask_lock = threading.Lock()
+        super().__init__(server_address, handler_class)
 
-    def _send_json(self, status: int, payload: dict[str, Any]) -> None:
+
+class PaperRagHandler(BaseHTTPRequestHandler):
+    server_version = "PaperRagWeb/1.0"
+
+    @property
+    def app_server(self) -> PaperRagHTTPServer:
+        return self.server  # type: ignore[return-value]
+
+    def log_message(self, format: str, *args: Any) -> None:
+        if urlparse(self.path).path.startswith(f"{API_PREFIX}/ask"):
+            return
+        super().log_message(format, *args)
+
+    def _send_json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
-
-    def _require_api_token(self) -> bool:
-        token = self.headers.get(SESSION_HEADER, "").strip()
-        if token and secrets.compare_digest(token, self.session_token):
-            return True
-        self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "无效或缺失会话 token"})
-        return False
 
     def _read_json_body(self) -> dict[str, Any] | None:
-        length = int(self.headers.get("Content-Length", "0") or "0")
+        length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return {}
+        raw = self.rfile.read(length)
         try:
-            raw = self.rfile.read(length)
-            return json.loads(raw.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "请求体必须是 JSON"})
+            data = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
             return None
+        return data if isinstance(data, dict) else None
 
-    def do_GET(self) -> None:
-        path = urlparse(self.path).path
-        if path == "/":
-            self._serve_index()
-            return
-        if path == "/api/health":
-            if not self._require_api_token():
-                return
-            self._send_json(HTTPStatus.OK, health_snapshot(self.config_path))
-            return
-        if path.startswith("/static/"):
-            self._serve_static(path[len("/static/") :])
-            return
-        self.send_error(HTTPStatus.NOT_FOUND)
+    def _api_allowed(self) -> bool:
+        if not host_allowed(self):
+            return False
+        if not origin_allowed(self):
+            return False
+        return token_from_request(self, self.app_server.session_token)
 
-    def do_POST(self) -> None:
-        path = urlparse(self.path).path
-        if path != "/api/ask":
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-        if not self._require_api_token():
-            return
-        body = self._read_json_body()
-        if body is None:
-            return
-        query = str(body.get("query", ""))
-        try:
-            result = ask_question(query, config_path=self.config_path)
-            self._send_json(HTTPStatus.OK, {"ok": True, "result": result})
-        except WebServiceError as exc:
-            self._send_json(exc.status, {"ok": False, "error": str(exc)})
-        except Exception as exc:  # noqa: BLE001 — surface as 500 without leaking secrets
-            self._send_json(
-                HTTPStatus.INTERNAL_SERVER_ERROR,
-                {"ok": False, "error": f"内部错误: {type(exc).__name__}"},
-            )
+    def _index_health(self) -> dict[str, Any]:
+        index_dir = resolve_path(self.app_server.config, "index")
+        manifest = index_dir / "manifest.json"
+        faiss = index_dir / "index.faiss"
+        index_ok = manifest.is_file() and (faiss.is_file() or (index_dir / "chunks_index.jsonl").is_file())
+        cfg = self.app_server.config
+        mode = generator_mode(agent=True)
+        return {
+            "ok": True,
+            "index_ok": index_ok,
+            "index_dir": str(index_dir),
+            "generator_mode": mode,
+            "api_key_set": resolve_api_key() is not None,
+            "llm_hint": llm_endpoint_summary(cfg) if mode == "openai" else f"mode=stub (set AGENT_GENERATOR=openai for LLM)",
+        }
 
-    def _serve_index(self) -> None:
-        index_path = STATIC_DIR / "index.html"
-        try:
-            html = index_path.read_text(encoding="utf-8")
-        except OSError:
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "index.html 缺失")
-            return
-        html = html.replace(TOKEN_PLACEHOLDER, self.session_token)
-        body = html.encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _serve_static(self, rel: str) -> None:
-        rel = rel.lstrip("/")
-        if ".." in Path(rel).parts:
+    def _serve_static(self, rel_path: str) -> None:
+        rel = rel_path.lstrip("/")
+        if rel.startswith("..") or "/.." in rel:
             self.send_error(HTTPStatus.FORBIDDEN)
             return
-        static_root = STATIC_DIR.resolve()
         file_path = (STATIC_DIR / rel).resolve()
-        try:
-            file_path.relative_to(static_root)
-        except ValueError:
+        if not str(file_path).startswith(str(STATIC_DIR.resolve())):
             self.send_error(HTTPStatus.FORBIDDEN)
             return
         if not file_path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        mime, _ = mimetypes.guess_type(str(file_path))
-        content_type = mime or "application/octet-stream"
+        ctype, _ = mimetypes.guess_type(str(file_path))
+        ctype = ctype or "application/octet-stream"
         data = file_path.read_bytes()
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Type", f"{ctype}; charset=utf-8" if ctype.startswith("text/") else ctype)
         self.send_header("Content-Length", str(len(data)))
+        if file_path.suffix in (".html",):
+            self.send_header("Cache-Control", "no-store")
+        else:
+            self.send_header("Cache-Control", "public, max-age=3600")
         self.end_headers()
         self.wfile.write(data)
 
+    def _serve_index(self) -> None:
+        index_path = STATIC_DIR / "index.html"
+        if not index_path.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        html = index_path.read_text(encoding="utf-8")
+        token = self.app_server.session_token
+        inject = f'<meta name="paper-rag-token" content="{token}">'
+        if "</head>" in html:
+            html = html.replace("</head>", f"  {inject}\n</head>", 1)
+        data = html.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
-def create_handler_class(session_token: str, config_path: Path) -> type[PaperRagWebHandler]:
-    class BoundHandler(PaperRagWebHandler):
-        pass
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path
+        if path in ("/", "/index.html"):
+            if not host_allowed(self):
+                self.send_error(HTTPStatus.FORBIDDEN)
+                return
+            self._serve_index()
+            return
+        if path.startswith("/static/"):
+            if not host_allowed(self):
+                self.send_error(HTTPStatus.FORBIDDEN)
+                return
+            self._serve_static(unquote(path[len("/static/") :]))
+            return
 
-    BoundHandler.session_token = session_token
-    BoundHandler.config_path = config_path
-    return BoundHandler
+        if not path.startswith(API_PREFIX):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+
+        if path == f"{API_PREFIX}/health":
+            if not self._api_allowed():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            self._send_json(HTTPStatus.OK, self._index_health())
+            return
+
+        m_sessions = re.fullmatch(rf"{re.escape(API_PREFIX)}/sessions/?", path)
+        if m_sessions:
+            if not self._api_allowed():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            archived = (urlparse(self.path).query or "").find("archived=1") >= 0
+            self._send_json(
+                HTTPStatus.OK,
+                {"sessions": self.app_server.sessions.list_summaries(include_archived=archived)},
+            )
+            return
+
+        m_session = re.fullmatch(rf"{re.escape(API_PREFIX)}/sessions/([^/]+)/?", path)
+        if m_session:
+            if not self._api_allowed():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            sid = m_session.group(1)
+            session = self.app_server.sessions.get(sid)
+            if session is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+                return
+            self._send_json(HTTPStatus.OK, session.to_dict())
+            return
+
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_POST(self) -> None:
+        path = urlparse(self.path).path
+        if not path.startswith(API_PREFIX):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+
+        if not self._api_allowed():
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+
+        if path == f"{API_PREFIX}/sessions":
+            body = self._read_json_body()
+            if body is None:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json"})
+                return
+            title = body.get("title")
+            session = self.app_server.sessions.create(title=str(title) if title else None)
+            self._send_json(HTTPStatus.CREATED, session.to_dict())
+            return
+
+        if path == f"{API_PREFIX}/ask":
+            body = self._read_json_body()
+            if body is None:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json"})
+                return
+            query = str(body.get("query") or "").strip()
+            if not query:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "query_required"})
+                return
+
+            session_id = body.get("session_id")
+            if session_id:
+                session = self.app_server.sessions.get(str(session_id))
+                if session is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "session_not_found"})
+                    return
+            else:
+                session = self.app_server.sessions.create()
+                session_id = session.id
+
+            health = self._index_health()
+            if not health["index_ok"]:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "index_missing", "message": "Run build_index.py first.", "health": health},
+                )
+                return
+
+            index_dir = resolve_path(self.app_server.config, "index")
+            exercise = bool(body.get("exercise_rewrite"))
+
+            with self.app_server._ask_lock:
+                try:
+                    result = run_agentic_query(
+                        query,
+                        index_dir,
+                        self.app_server.config,
+                        exercise_strict_grade=exercise,
+                    )
+                except Exception as exc:  # noqa: BLE001 — surface to local UI
+                    self._send_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": "agent_failed", "message": str(exc)},
+                    )
+                    return
+
+            turn = self.app_server.sessions.append_turn(str(session_id), query, result)
+            session = self.app_server.sessions.get(str(session_id))
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "session_id": session_id,
+                    "turn": asdict(turn) if turn else None,
+                    "session": session.to_dict() if session else None,
+                },
+            )
+            return
+
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_PATCH(self) -> None:
+        path = urlparse(self.path).path
+        m_session = re.fullmatch(rf"{re.escape(API_PREFIX)}/sessions/([^/]+)/?", path)
+        if not m_session:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        if not self._api_allowed():
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+
+        body = self._read_json_body()
+        if body is None:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json"})
+            return
+
+        sid = m_session.group(1)
+        session = self.app_server.sessions.get(sid)
+        if session is None:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+            return
+
+        if "archived" in body:
+            session.archived = bool(body["archived"])
+        if "title" in body:
+            title = str(body["title"]).strip()
+            if title:
+                session.title = title[:120]
+
+        self.app_server.sessions.save(session)
+        self._send_json(HTTPStatus.OK, session.to_dict())
+
+    def do_DELETE(self) -> None:
+        path = urlparse(self.path).path
+        m_session = re.fullmatch(rf"{re.escape(API_PREFIX)}/sessions/([^/]+)/?", path)
+        if not m_session:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        if not self._api_allowed():
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        sid = m_session.group(1)
+        if self.app_server.sessions.delete(sid):
+            self._send_json(HTTPStatus.OK, {"deleted": True, "id": sid})
+        else:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
 
-def run_server(
+def create_server(
+    host: str,
+    port: int,
     *,
-    host: str = "127.0.0.1",
-    port: int = 8765,
     config_path: Path | None = None,
-) -> None:
-    token = secrets.token_urlsafe(24)
-    cfg = config_path or DEFAULT_CONFIG_PATH
-    handler = create_handler_class(token, cfg)
-    server = ThreadingHTTPServer((host, port), handler)
-    url = f"http://{host}:{port}/"
-    print(f"Agentic Paper RAG Web UI: {url}")
-    print(f"绑定配置: {cfg.relative_to(REPO_ROOT) if cfg.is_relative_to(REPO_ROOT) else cfg}")
-    print("仅本机访问；关闭终端即停止服务。")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n已停止。")
-    finally:
-        server.server_close()
+    sessions_dir: Path | None = None,
+    token: str | None = None,
+) -> PaperRagHTTPServer:
+    from src.config import REPO_ROOT
+
+    config = load_config(config_path)
+    token = token or new_session_token()
+    store_dir = sessions_dir or (REPO_ROOT / "data" / "web" / "sessions")
+    sessions = SessionStore(store_dir)
+    return PaperRagHTTPServer(
+        (host, port),
+        PaperRagHandler,
+        token=token,
+        config=config,
+        sessions=sessions,
+    )
