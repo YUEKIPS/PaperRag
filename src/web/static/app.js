@@ -233,14 +233,58 @@
   }
 
   function setSidebarTab(mode) {
-    sidebarMode = mode;
-    const sessions = mode === "sessions";
-    els.tabSessions.classList.toggle("active", sessions);
-    els.tabPapers.classList.toggle("active", !sessions);
-    els.tabSessions.setAttribute("aria-selected", sessions ? "true" : "false");
-    els.tabPapers.setAttribute("aria-selected", sessions ? "false" : "true");
-    els.panelSessions.hidden = !sessions;
-    els.panelPapers.hidden = sessions;
+    sidebarMode = mode === "papers" ? "papers" : "sessions";
+    const sessionsOn = sidebarMode === "sessions";
+    const pairs = [
+      [els.tabSessions, els.panelSessions, sessionsOn],
+      [els.tabPapers, els.panelPapers, !sessionsOn],
+    ];
+    pairs.forEach(([tab, panel, on]) => {
+      if (tab) {
+        tab.classList.toggle("active", on);
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+        tab.tabIndex = on ? 0 : -1;
+      }
+      if (panel) {
+        panel.classList.toggle("is-active", on);
+        panel.hidden = !on;
+      }
+    });
+  }
+
+  function activateSidebarTab(btn) {
+    if (!btn) return;
+    const mode = btn.id === "tab-papers" ? "papers" : "sessions";
+    setSidebarTab(mode);
+    if (mode === "papers") {
+      loadPapers().catch((err) => showToast((err && err.message) || "无法加载论文列表"));
+    }
+  }
+
+  function bindSidebarTabs() {
+    const tabList = document.querySelector(".sidebar-tabs");
+    if (!tabList) return;
+    tabList.addEventListener("click", (event) => {
+      const btn = event.target.closest("button.sidebar-tab");
+      if (!btn || !tabList.contains(btn)) return;
+      activateSidebarTab(btn);
+    });
+    tabList.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") {
+        return;
+      }
+      const tabs = [...tabList.querySelectorAll('[role="tab"]')];
+      const current = tabs.indexOf(document.activeElement);
+      if (current < 0) return;
+      event.preventDefault();
+      let next = current;
+      if (event.key === "ArrowRight") next = (current + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") next = 0;
+      else next = tabs.length - 1;
+      tabs[next].focus();
+      activateSidebarTab(tabs[next]);
+    });
   }
 
   function paperDisplayTitle(paper) {
@@ -280,9 +324,17 @@
   }
 
   async function loadPapers() {
-    const data = await api("/api/papers");
-    papersCatalog = data.papers || [];
-    renderPaperList();
+    try {
+      const data = await api("/api/papers");
+      papersCatalog = data.papers || [];
+      renderPaperList();
+    } catch (err) {
+      if (!papersCatalog.length && els.paperList) {
+        els.paperList.innerHTML =
+          `<p class="paper-library-error">${escapeHtml((err && err.message) || "无法加载论文列表")}</p>`;
+      }
+      throw err;
+    }
   }
 
   function closePaperPreview() {
@@ -850,6 +902,8 @@
     }
   }
 
+  bindSidebarTabs();
+
   els.composerForm.addEventListener("submit", (e) => {
     e.preventDefault();
     submitQuery(els.queryInput.value);
@@ -874,15 +928,6 @@
   });
 
   els.themeSelect.addEventListener("change", () => setTheme(els.themeSelect.value));
-  if (els.tabSessions) {
-    els.tabSessions.addEventListener("click", () => setSidebarTab("sessions"));
-  }
-  if (els.tabPapers) {
-    els.tabPapers.addEventListener("click", () => {
-      setSidebarTab("papers");
-      loadPapers().catch(() => {});
-    });
-  }
   if (els.btnClosePaperPreview) {
     els.btnClosePaperPreview.addEventListener("click", () => closePaperPreview());
   }
@@ -905,7 +950,7 @@
     setInterval(refreshHealth, 45000);
     setSidebarTab("sessions");
     await loadSessionList();
-    await loadPapers().catch(() => {});
+    await loadPapers().catch((err) => showToast((err && err.message) || "无法加载论文列表"));
     const data = await api("/api/sessions");
     if (data.sessions && data.sessions.length) {
       await switchSession(data.sessions[0].id);

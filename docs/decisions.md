@@ -129,16 +129,6 @@
 
 ---
 
-## D-014 — Web UI：本地论文库与 PDF 预览
-
-- **日期**：2026-11-09
-- **状态**：已接受（MVP）
-- **决策**：侧栏增加「对话 / 论文库」切换；`GET /api/papers` 合并 `configs/default.yaml` `arxiv.paper_ids` 与 `data/raw_pdfs/*.pdf`；可选标题来自 `data/raw_pdfs/{id}.meta.json`（`title` 字段），否则 UI 仅展示 arXiv id。`GET /api/papers/{id}/pdf` 以 `application/pdf` 回传本地文件，复用 `_api_allowed()`（localhost + Bearer / `X-Session-Token`）。前端**不用** URL query token：`fetch` 带 Bearer → `Blob` → `URL.createObjectURL` 注入 `<object type="application/pdf">`，避免 iframe 无法带头与 token 泄漏。主区底部内嵌预览 +「插入提问」向 composer 写入 `关于论文 [id]：` 或追加 `[id]`。
-- **背景**：用户需在本地浏览 M1 语料、对照 PDF 提问，不拉 arXiv 元数据、不引入 npm/React。
-- **后果**：`src/web/papers.py`；`server.py` 增两条 GET；静态 `app.{html,css,js}` 扩展；无网络依赖。
-
----
-
 ## D-014 — 回答语言跟随用户 + 会话删除导航
 
 - **日期**：2026-11-09
@@ -146,3 +136,13 @@
 - **决策**：`prompts/generate_system.txt` 要求生成语言与用户问题一致；`rewrite_system.txt` 仅补充「保留原问语言、不擅自翻译」。Web UI 删除/归档当前会话后：刷新列表 → 若有其它会话则切换至首个剩余会话 → **仅**在列表为空时 `POST` 新会话；DELETE/PATCH 失败用 toast 提示。
 - **背景**：中文 UI 下英文固定回答体验差；删除当前会话立即新建导致「删不掉」观感。
 - **后果**：`app.js` 增 `navigateAfterCurrentSessionRemoved` 与 `showToast`；grade 提示词不变（JSON 判定与语言无关）。
+
+---
+
+## D-015 — Web UI：本地论文库与 PDF 预览
+
+- **日期**：2026-11-09
+- **状态**：已接受（MVP）
+- **决策**：侧栏增加「对话 / 论文库」切换；`GET /api/papers` 合并 `configs/default.yaml` `arxiv.paper_ids` 与 `data/raw_pdfs/*.pdf`；可选标题来自 `data/raw_pdfs/{id}.meta.json`（`title` 字段），否则 UI 仅展示 arXiv id。`GET /api/papers/{id}/pdf` 以 `application/pdf` 回传本地文件，复用 `_api_allowed()`（localhost + Bearer / `X-Session-Token`）。前端**不用** URL query token：`fetch` 带 Bearer → `Blob` → `URL.createObjectURL` 注入 `<object type="application/pdf">`，避免 iframe 无法带头与 token 泄漏。主区底部内嵌预览 +「插入提问」向 composer 写入 `关于论文 [id]：` 或追加 `[id]`。侧栏 tab 用下划线文字，不用与「新建对话」并列的描边胶囊。
+- **背景**：用户需在本地浏览 M1 语料、对照 PDF 提问，不拉 arXiv 元数据、不引入 npm/React。初稿误用已占用的 D-014，更正为本条。
+- **后果**：`src/web/papers.py`；`server.py` 增两条 GET；静态 `app.{html,css,js}` 扩展；无网络依赖。

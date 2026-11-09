@@ -17,10 +17,10 @@
         </div>
       </header>
       <div class="sidebar-tabs" role="tablist" aria-label="侧栏">
-        <button type="button" class="sidebar-tab active" id="tab-sessions" role="tab" aria-selected="true" aria-controls="panel-sessions">对话</button>
-        <button type="button" class="sidebar-tab" id="tab-papers" role="tab" aria-selected="false" aria-controls="panel-papers">论文库</button>
+        <button type="button" class="sidebar-tab active" id="tab-sessions" role="tab" aria-selected="true" aria-controls="panel-sessions" tabindex="0">对话</button>
+        <button type="button" class="sidebar-tab" id="tab-papers" role="tab" aria-selected="false" aria-controls="panel-papers" tabindex="-1">论文库</button>
       </div>
-      <div class="sidebar-panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
+      <div class="sidebar-panel is-active" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
         <div class="sidebar-actions">
           <button type="button" class="btn btn-primary" id="btn-new-session">新建对话</button>
         </div>
