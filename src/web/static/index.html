@@ -38,8 +38,8 @@
       <header class="main-header">
         <h1 class="session-title" id="main-title">新对话</h1>
         <div class="main-header-actions">
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-archive" title="归档">归档</button>
-          <button type="button" class="btn btn-ghost btn-sm btn-danger" id="btn-delete" title="删除">删除</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-archive" title="归档" disabled>归档</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger" id="btn-delete" title="删除" disabled>删除</button>
         </div>
       </header>
 
@@ -56,7 +56,7 @@
           id="query-input"
           class="composer-input"
           rows="2"
-          placeholder="提问论文库… 例如：What is retrieval-augmented generation?"
+          placeholder="提问论文库… 例如：检索增强生成（RAG）是什么？"
           autocomplete="off"
         ></textarea>
         <button type="submit" class="btn btn-primary composer-send" id="btn-send">发送</button>

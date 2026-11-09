@@ -43,6 +43,7 @@
 
   let confirmDialogResolve = null;
   let renameDialogResolve = null;
+  let sessionActionBusy = false;
 
   let currentSessionId = null;
   let sessionDetail = null;
@@ -70,16 +71,49 @@
     });
   }
 
+  function updateSessionActionButtons() {
+    const disabled = !currentSessionId || sessionActionBusy;
+    els.btnArchive.disabled = disabled;
+    els.btnDelete.disabled = disabled;
+  }
+
+  function setSessionActionBusy(busy) {
+    sessionActionBusy = busy;
+    updateSessionActionButtons();
+    const on = !busy;
+    els.confirmDialogOk.disabled = !on;
+    els.confirmDialogCancel.disabled = !on;
+  }
+
+  const DELETE_CONFIRM = {
+    title: "删除对话",
+    message: "删除后无法恢复，对话记录将从列表中移除。",
+    confirmLabel: "删除",
+    danger: true,
+  };
+
+  const ARCHIVE_CONFIRM = {
+    title: "归档对话",
+    message: "归档后该对话将从侧栏列表中隐藏，记录仍保留。确定归档？",
+    confirmLabel: "归档",
+    danger: false,
+  };
+
   function openConfirmDialog({
-    title = "删除对话",
-    message = "删除后无法恢复，对话记录将从列表中移除。",
-    confirmLabel = "删除",
+    title = DELETE_CONFIRM.title,
+    message = DELETE_CONFIRM.message,
+    confirmLabel = DELETE_CONFIRM.confirmLabel,
+    danger = true,
   } = {}) {
     return new Promise((resolve) => {
       confirmDialogResolve = resolve;
       els.confirmDialogTitle.textContent = title;
       els.confirmDialogMessage.textContent = message;
       els.confirmDialogOk.textContent = confirmLabel;
+      els.confirmDialogOk.classList.toggle("btn-danger-fill", danger);
+      els.confirmDialogOk.classList.toggle("btn-primary", !danger);
+      els.confirmDialogOk.disabled = false;
+      els.confirmDialogCancel.disabled = false;
       if (typeof els.confirmDialog.showModal === "function") {
         els.confirmDialog.showModal();
       }
@@ -217,6 +251,7 @@
     els.mainPane.classList.add("switching");
     await new Promise((r) => setTimeout(r, 120));
     currentSessionId = id;
+    updateSessionActionButtons();
     sessionDetail = await api(`/api/sessions/${encodeURIComponent(id)}`);
     els.mainTitle.textContent = sessionDetail.title || "新对话";
     renderMessages(sessionDetail.turns || []);
@@ -227,8 +262,9 @@
   async function createNewSession() {
     const session = await api("/api/sessions", { method: "POST", body: "{}" });
     currentSessionId = session.id;
+    updateSessionActionButtons();
     sessionDetail = session;
-    els.mainTitle.textContent = session.title;
+    els.mainTitle.textContent = session.title || "新对话";
     renderMessages([]);
     await loadSessionList();
     els.queryInput.focus();
@@ -328,6 +364,8 @@
   }
 
   async function renameSession(id, currentTitle) {
+    if (sessionActionBusy || !id) return;
+    hideSessionContextMenu();
     const next = await openRenameDialog({ defaultValue: currentTitle || "新对话" });
     if (next === null) return;
     const title = next.trim();
@@ -350,6 +388,7 @@
   async function navigateAfterCurrentSessionRemoved() {
     currentSessionId = null;
     sessionDetail = null;
+    updateSessionActionButtons();
     const data = await api("/api/sessions");
     const sessions = data.sessions || [];
     renderSessionList(sessions);
@@ -363,6 +402,11 @@
   }
 
   async function archiveSession(id) {
+    if (sessionActionBusy || !id) return;
+    hideSessionContextMenu();
+    const ok = await openConfirmDialog(ARCHIVE_CONFIRM);
+    if (!ok) return;
+    setSessionActionBusy(true);
     try {
       await api(`/api/sessions/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -375,12 +419,17 @@
       }
     } catch (e) {
       showToast(e.message || "归档失败");
+    } finally {
+      setSessionActionBusy(false);
     }
   }
 
   async function deleteSession(id) {
-    const ok = await openConfirmDialog();
+    if (sessionActionBusy || !id) return;
+    hideSessionContextMenu();
+    const ok = await openConfirmDialog(DELETE_CONFIRM);
     if (!ok) return;
+    setSessionActionBusy(true);
     try {
       await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (id === currentSessionId) {
@@ -390,6 +439,8 @@
       }
     } catch (e) {
       showToast(e.message || "删除失败");
+    } finally {
+      setSessionActionBusy(false);
     }
   }
 
@@ -686,6 +737,7 @@
 
   async function init() {
     wireSessionDialogs();
+    updateSessionActionButtons();
     loadTheme();
     refreshHealth();
     setInterval(refreshHealth, 45000);
