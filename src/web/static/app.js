@@ -30,7 +30,19 @@
     inspector: document.getElementById("inspector"),
     inspectorBody: document.getElementById("inspector-body"),
     inspectorClose: document.getElementById("inspector-close"),
+    confirmDialog: document.getElementById("confirm-dialog"),
+    confirmDialogTitle: document.getElementById("confirm-dialog-title"),
+    confirmDialogMessage: document.getElementById("confirm-dialog-message"),
+    confirmDialogCancel: document.getElementById("confirm-dialog-cancel"),
+    confirmDialogOk: document.getElementById("confirm-dialog-ok"),
+    renameDialog: document.getElementById("rename-dialog"),
+    renameDialogForm: document.getElementById("rename-dialog-form"),
+    renameDialogInput: document.getElementById("rename-dialog-input"),
+    renameDialogCancel: document.getElementById("rename-dialog-cancel"),
   };
+
+  let confirmDialogResolve = null;
+  let renameDialogResolve = null;
 
   let currentSessionId = null;
   let sessionDetail = null;
@@ -55,6 +67,82 @@
         throw err;
       }
       return data;
+    });
+  }
+
+  function openConfirmDialog({
+    title = "删除对话",
+    message = "删除后无法恢复，对话记录将从列表中移除。",
+    confirmLabel = "删除",
+  } = {}) {
+    return new Promise((resolve) => {
+      confirmDialogResolve = resolve;
+      els.confirmDialogTitle.textContent = title;
+      els.confirmDialogMessage.textContent = message;
+      els.confirmDialogOk.textContent = confirmLabel;
+      if (typeof els.confirmDialog.showModal === "function") {
+        els.confirmDialog.showModal();
+      }
+      els.confirmDialogCancel.focus();
+    });
+  }
+
+  function finishConfirmDialog(confirmed) {
+    if (typeof els.confirmDialog.close === "function") {
+      els.confirmDialog.close();
+    }
+    if (confirmDialogResolve) {
+      confirmDialogResolve(confirmed);
+      confirmDialogResolve = null;
+    }
+  }
+
+  function openRenameDialog({ defaultValue = "新对话" } = {}) {
+    return new Promise((resolve) => {
+      renameDialogResolve = resolve;
+      els.renameDialogInput.value = defaultValue;
+      if (typeof els.renameDialog.showModal === "function") {
+        els.renameDialog.showModal();
+      }
+      els.renameDialogInput.focus();
+      els.renameDialogInput.select();
+    });
+  }
+
+  function finishRenameDialog(value) {
+    if (typeof els.renameDialog.close === "function") {
+      els.renameDialog.close();
+    }
+    if (renameDialogResolve) {
+      renameDialogResolve(value);
+      renameDialogResolve = null;
+    }
+  }
+
+  function wireSessionDialogs() {
+    els.confirmDialogOk.addEventListener("click", () => finishConfirmDialog(true));
+    els.confirmDialogCancel.addEventListener("click", () => finishConfirmDialog(false));
+    els.confirmDialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      finishConfirmDialog(false);
+    });
+    els.confirmDialog.addEventListener("click", (e) => {
+      if (e.target === els.confirmDialog) finishConfirmDialog(false);
+    });
+
+    els.renameDialogCancel.addEventListener("click", () => finishRenameDialog(null));
+    els.renameDialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      finishRenameDialog(null);
+    });
+    els.renameDialog.addEventListener("click", (e) => {
+      if (e.target === els.renameDialog) finishRenameDialog(null);
+    });
+    els.renameDialogForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const title = els.renameDialogInput.value.trim();
+      if (!title) return;
+      finishRenameDialog(title);
     });
   }
 
@@ -240,19 +328,23 @@
   }
 
   async function renameSession(id, currentTitle) {
-    const next = prompt("重命名对话", currentTitle || "新对话");
+    const next = await openRenameDialog({ defaultValue: currentTitle || "新对话" });
     if (next === null) return;
     const title = next.trim();
     if (!title || title === currentTitle) return;
-    await api(`/api/sessions/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ title }),
-    });
-    if (id === currentSessionId) {
-      els.mainTitle.textContent = title;
-      if (sessionDetail) sessionDetail.title = title;
+    try {
+      await api(`/api/sessions/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+      if (id === currentSessionId) {
+        els.mainTitle.textContent = title;
+        if (sessionDetail) sessionDetail.title = title;
+      }
+      await loadSessionList();
+    } catch (e) {
+      showToast(e.message || "重命名失败");
     }
-    await loadSessionList();
   }
 
   async function navigateAfterCurrentSessionRemoved() {
@@ -287,7 +379,8 @@
   }
 
   async function deleteSession(id) {
-    if (!confirm("删除此对话？")) return;
+    const ok = await openConfirmDialog();
+    if (!ok) return;
     try {
       await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (id === currentSessionId) {
@@ -592,6 +685,7 @@
   });
 
   async function init() {
+    wireSessionDialogs();
     loadTheme();
     refreshHealth();
     setInterval(refreshHealth, 45000);

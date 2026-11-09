@@ -72,6 +72,33 @@
     <div class="inspector-body" id="inspector-body"></div>
   </dialog>
 
+  <dialog class="inspector session-dialog" id="confirm-dialog" aria-labelledby="confirm-dialog-title">
+    <header class="inspector-header">
+      <h2 id="confirm-dialog-title">删除对话</h2>
+    </header>
+    <div class="inspector-body session-dialog-body">
+      <p class="session-dialog-message" id="confirm-dialog-message">删除后无法恢复，对话记录将从列表中移除。</p>
+      <div class="session-dialog-actions">
+        <button type="button" class="btn btn-ghost" id="confirm-dialog-cancel">取消</button>
+        <button type="button" class="btn btn-danger-fill" id="confirm-dialog-ok">删除</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="inspector session-dialog" id="rename-dialog" aria-labelledby="rename-dialog-title">
+    <header class="inspector-header">
+      <h2 id="rename-dialog-title">重命名对话</h2>
+    </header>
+    <form class="inspector-body session-dialog-body" id="rename-dialog-form" method="dialog">
+      <label class="session-dialog-label" for="rename-dialog-input">标题</label>
+      <input type="text" class="session-dialog-input" id="rename-dialog-input" name="title" autocomplete="off" maxlength="120" required>
+      <div class="session-dialog-actions">
+        <button type="button" class="btn btn-ghost" id="rename-dialog-cancel">取消</button>
+        <button type="submit" class="btn btn-primary" id="rename-dialog-ok">确定</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/static/vendor/marked.umd.js"></script>
   <script src="/static/markdown.js"></script>
   <script src="/static/app.js" defer></script>

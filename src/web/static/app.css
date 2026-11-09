@@ -847,6 +847,65 @@ body {
   font-size: 0.95rem;
 }
 
+.session-dialog {
+  max-width: min(400px, 92vw);
+}
+
+.session-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: none;
+}
+
+.session-dialog-message {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.session-dialog-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 -8px;
+}
+
+.session-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.session-dialog-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.session-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-danger-fill {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn-danger-fill:hover:not(:disabled) {
+  filter: brightness(1.06);
+  background: var(--danger);
+}
+
 .app-toast {
   position: fixed;
   bottom: 24px;
