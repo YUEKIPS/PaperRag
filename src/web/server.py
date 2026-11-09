@@ -114,10 +114,8 @@ class PaperRagHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8" if ctype.startswith("text/") else ctype)
         self.send_header("Content-Length", str(len(data)))
-        if file_path.suffix in (".html",):
-            self.send_header("Cache-Control", "no-store")
-        else:
-            self.send_header("Cache-Control", "public, max-age=3600")
+        # Localhost-only UI: avoid stale JS/CSS during rapid iteration (HTML already no-store).
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
