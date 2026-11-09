@@ -24,17 +24,18 @@
 
 ### M2 — Agentic + 混合检索强化
 
-- [ ] LangGraph 编排（decide → retrieve → grade → rewrite → generate）
-- [ ] Reranker 接入
-- [ ] `run_agentic.py`、`eval_all.py` 实装
-- [ ] 对比实验报告入 `docs/reports/`
+- [x] LangGraph 编排（decide → retrieve → grade → rewrite → generate），`src/agent/graph.py`
+- [x] Cross-encoder rerank（`retriever.reranker`，`--no-rerank` 消融）
+- [x] `run_agentic.py`、`eval_all.py` 实装；产物 `data/eval/runs/`（gitignore）
+- [x] 烟测报告 `docs/reports/smoke_m2_agentic.md`（定性，无 aggregate Recall@k）
+- [ ] **未做**：生产级 grade/rewrite prompt、ColBERT、自动召回指标、decide 路由学习
 
-## 本轮之后建议的下一步（本地 / 云端 M1）
+## 本轮之后建议的下一步（M3+）
 
-1. `pip install -r requirements.txt` 并执行完整四步流水线
-2. 在 `src/indexer/build.py` 接入 `sentence-transformers` + FAISS
-3. 扩展 `retriever/baseline.py` 或新增 `retriever/hybrid.py`
-4. 更新日报与 `docs/decisions.md`（嵌入模型选型）
+1. 有 API 时：`AGENT_GENERATOR=openai` 跑 grade/rewrite/generate 全 LLM 环
+2. 公式/多栏 PDF spot check；必要时调 chunk 策略
+3. 在 `eval_all` 上追加人工标注 gold chunk，再讨论是否做 Recall@k（仍不编造数字）
+4. 评估更大 rerank（如 `BAAI/bge-reranker-base`）与嵌入模型升级
 
 ## 风险
 

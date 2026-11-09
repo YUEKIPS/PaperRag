@@ -71,9 +71,28 @@
 
 ---
 
-## D-005 — 不做 M0 虚假评测
+## D-005 — 不做虚假 aggregate 评测
 
 - **日期**：2026-11-09
-- **状态**：已接受
-- **决策**：`questions.json` 标为 draft；`eval_all.py` 保持 stub。
-- **后果**：对外分享前需跑真实 eval 并写 `docs/reports/`。
+- **状态**：已接受（M2 更新）
+- **决策**：`questions.json` 标为 draft；`eval_all.py` 只写定性 smoke 与 per-question 产物，**不输出 Recall@k 等编造总和**。
+- **后果**：`data/eval/runs/` gitignore；报告见 `docs/reports/smoke_m2_agentic.md`。
+
+---
+
+## D-009 — M2 Cross-encoder rerank
+
+- **日期**：2026-11-09
+- **状态**：已接受（原型）
+- **决策**：混合/RRF 召回后对 `candidate_pool`（默认 30）做交叉编码器重排；默认模型 `cross-encoder/ms-marco-MiniLM-L-6-v2`（CPU 友好）。可配置 `retriever.reranker.enabled: false` 或 CLI `--no-rerank`。
+- **背景**：比 `BAAI/bge-reranker-base` 更轻，适合云端 smoke；README 文档可换 bge。
+- **后果**：`src/rerank/cross_encoder.py`、`src/retriever/pipeline.py`；baseline 与 agentic 共用。
+
+---
+
+## D-010 — M2 LangGraph Agentic 环
+
+- **日期**：2026-11-09
+- **状态**：已接受（原型）
+- **决策**：`langgraph` 实现 `decide → retrieve → grade → rewrite → generate`；`max_grade_rewrite_loops` 默认 2。Grade/rewrite/generate：默认 **stub**；`AGENT_GENERATOR` 或 `BASELINE_GENERATOR=openai` 时 grade/rewrite 可走 OpenAI 兼容 API（`src/generate/llm.py`）。
+- **后果**：`requirements.txt` 启用 `langgraph` / `langchain-core`；decide 节点暂为透传，非学习型路由。

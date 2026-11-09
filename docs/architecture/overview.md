@@ -17,13 +17,15 @@ flowchart LR
   Gen --> Ans[Answer + citations]
 ```
 
-## 当前实现（M1 Baseline）
+## 当前实现（M2）
 
-- **Parser**：`src/parser/pdf_parser.py`（PyMuPDF，页文本 + 固定字符分块）
+- **Parser**：`src/parser/pdf_parser.py`（PyMuPDF，页文本 + 固定字符分块 512/64）
 - **Indexer**：`src/indexer/build.py` — sentence-transformers 嵌入 + FAISS；可选 BM25 侧车
-- **Retriever**：`retriever/baseline.py` — 稠密 FAISS；`hybrid.enabled` 时 BM25 + RRF
-- **Generator**：`generate/baseline.py` — 默认 stub；可选 OpenAI 兼容 chat API
-- **Orchestrator / Rerank / Agentic**：`scripts/run_agentic.py` 等仍为 M2 stub
+- **Retriever**：`retriever/baseline.py` 稠密 + RRF；`retriever/pipeline.py` 统一入口 + 可选 rerank
+- **Reranker**：`src/rerank/cross_encoder.py`（CrossEncoder，`retriever.reranker` 配置）
+- **Generator**：`generate/baseline.py` + `generate/llm.py`（stub / OpenAI 兼容）
+- **Orchestrator**：`src/agent/graph.py`（LangGraph）；CLI `scripts/run_agentic.py`
+- **Eval**：`scripts/eval_all.py` → `data/eval/runs/` + `docs/reports/smoke_m2_agentic.md`
 
 ## 配置与入口
 
