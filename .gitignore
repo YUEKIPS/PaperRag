@@ -38,3 +38,4 @@ chroma/
 # Logs
 *.log
 logs/
+!.env.example
