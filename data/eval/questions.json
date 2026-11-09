@@ -1,0 +1,37 @@
+{
+  "version": "draft",
+  "status": "placeholder — not used for reported metrics",
+  "timezone": "Asia/Shanghai",
+  "questions": [
+    {
+      "id": "q001",
+      "text": "What is retrieval-augmented generation (RAG), and what problem does it address for large language models?",
+      "expected_topics": ["RAG", "hallucination", "external knowledge"],
+      "notes": "draft eval item; gold citations TBD in M1"
+    },
+    {
+      "id": "q002",
+      "text": "How do agentic RAG systems differ from a single-shot retrieve-then-generate pipeline?",
+      "expected_topics": ["agent", "tool use", "iterative retrieval"],
+      "notes": "draft"
+    },
+    {
+      "id": "q003",
+      "text": "What role does chunking strategy play in PDF-based scientific paper retrieval?",
+      "expected_topics": ["chunking", "parser", "recall"],
+      "notes": "draft"
+    },
+    {
+      "id": "q004",
+      "text": "Why might hybrid retrieval (dense + sparse) help on technical LLM papers?",
+      "expected_topics": ["BM25", "embeddings", "RRF"],
+      "notes": "draft"
+    },
+    {
+      "id": "q005",
+      "text": "What should a good answer citation include when answers come from arXiv PDFs?",
+      "expected_topics": ["page number", "paper id", "provenance"],
+      "notes": "draft"
+    }
+  ]
+}

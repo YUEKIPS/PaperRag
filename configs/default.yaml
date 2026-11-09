@@ -1,0 +1,53 @@
+project:
+  name: agentic-paper-rag
+  timezone: Asia/Shanghai
+
+paths:
+  raw_pdfs: data/raw_pdfs
+  processed: data/processed
+  index: data/index
+  eval_questions: data/eval/questions.json
+
+arxiv:
+  # M1 seed corpus (LLM / Agent RAG papers)
+  paper_ids:
+    - "2005.11401"
+    - "2201.11903"
+    - "2210.03629"
+    - "2302.04761"
+    - "2303.11366"
+    - "2304.03442"
+    - "2305.16291"
+    - "2305.10601"
+    - "2305.15334"
+    - "2308.03688"
+    - "2310.11511"
+    - "2401.15884"
+  pdf_url_template: "https://arxiv.org/pdf/{paper_id}.pdf"
+  request_delay_seconds: 1.0
+
+ingest:
+  chunk_size: 512
+  chunk_overlap: 64
+  # parser: pymupdf  # M1
+
+index:
+  # embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  hybrid:
+    enabled: false  # BM25 + vector + RRF — M2+
+  vector_store: local  # placeholder
+
+retriever:
+  top_k: 10
+  # reranker: none  # M2+
+
+baseline:
+  # Non-agentic retrieve-then-stub-generate for pipeline smoke tests
+  max_context_chunks: 5
+
+agent:
+  # LangGraph: decide → retrieve → grade → rewrite → generate (not in round-1)
+  enabled: false
+
+eval:
+  output_dir: data/eval/runs
