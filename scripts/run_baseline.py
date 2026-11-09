@@ -14,7 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.config import load_config, resolve_path  # noqa: E402
 from src.generate.baseline import generate_baseline_answer  # noqa: E402
-from src.retriever.baseline import retrieve_baseline  # noqa: E402
+from src.retriever.pipeline import _rerank_cfg, retrieve_with_config  # noqa: E402
 
 
 def main() -> int:
@@ -27,6 +27,11 @@ def main() -> int:
         help="Run first N questions from eval JSON (default: config paths.eval_questions)",
     )
     parser.add_argument("--limit", type=int, default=1, help="Max questions when using --eval-file")
+    parser.add_argument(
+        "--no-rerank",
+        action="store_true",
+        help="Disable cross-encoder rerank (ablation)",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -58,12 +63,18 @@ def main() -> int:
     gen_mode = os.environ.get("BASELINE_GENERATOR", "stub")
     print(f"Generator mode: {gen_mode}", file=sys.stderr)
 
+    rerank_default = bool(_rerank_cfg(config).get("enabled", False))
+    rerank_enabled = False if args.no_rerank else rerank_default
+
     for q in queries:
-        chunks = retrieve_baseline(q, index_dir, top_k=top_k)
+        chunks = retrieve_with_config(q, index_dir, config, top_k=top_k, rerank_override=rerank_enabled)
         answer = generate_baseline_answer(q, chunks)
         print("=" * 60)
         print(f"Query: {q}")
-        print(f"Retriever: top_k={top_k}, hits={len(chunks)}, generator={answer.generator}")
+        print(
+            f"Retriever: top_k={top_k}, rerank={rerank_enabled}, "
+            f"hits={len(chunks)}, generator={answer.generator}"
+        )
         print(answer.answer)
         print("Citations:", json.dumps(answer.citations, ensure_ascii=False, indent=2))
 

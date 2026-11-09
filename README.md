@@ -4,7 +4,7 @@
 
 与 [RepoAgent](https://github.com/)（代码仓 Agent）互补：RepoAgent 管代码仓库；本项目管 **非代码论文知识库**。
 
-> **当前状态（2026-11-09）**：**M1 Baseline RAG** 已落地 — download → ingest → **FAISS 稠密索引**（+ BM25/RRF 原型）→ baseline 检索与 stub/可选 LLM 生成。LangGraph Agentic、生产级 rerank、aggregate 评测 **未** 实现。
+> **当前状态（2026-11-09）**：**M2 Agentic 原型** 已落地 — M1 索引链 + **cross-encoder rerank** + **LangGraph**（grade/rewrite 环）+ `run_agentic` / `eval_all` 定性 smoke。无 Recall@k aggregate；decide 路由与 ColBERT 级 rerank **未** 做。
 
 ## 功能模块（目标）
 
@@ -13,9 +13,9 @@
 | `parser` | PDF 解析（PyMuPDF） |
 | `indexer` | 分块、FAISS 向量 / BM25 侧车 |
 | `embed` | `src/indexer/embed.py` — sentence-transformers |
-| `retriever` | 稠密 + 可选 RRF |
-| `reranker` | 交叉编码器重排（M2+） |
-| `orchestrator` | LangGraph：decide → retrieve → grade → rewrite → generate |
+| `retriever` | 稠密 + RRF（`pipeline.py`） |
+| `rerank` | Cross-encoder 重排（可 `--no-rerank`） |
+| `agent` | LangGraph：decide → retrieve → grade → rewrite → generate |
 | `generate` | 带引用的回答生成 |
 | `eval` | 离线评测 |
 
@@ -43,9 +43,11 @@ export OPENAI_API_KEY=sk-...
 # 可选：OPENAI_BASE_URL、OPENAI_MODEL（默认 gpt-4o-mini）
 ```
 
-未设置时 `run_baseline.py` 使用 **stub**（摘录 + 引用），适合无 API 烟测。
+未设置时 baseline / agentic 使用 **stub**（摘录 + 引用），适合无 API 烟测。
 
-## 快速路径：download → ingest → index → baseline
+Agentic 节点优先读 `AGENT_GENERATOR`，否则回退 `BASELINE_GENERATOR`。
+
+## 快速路径：download → ingest → index → baseline / agentic
 
 在仓库根目录执行：
 
@@ -59,17 +61,18 @@ python3 scripts/ingest.py
 # 3) 构建 FAISS 索引（+ 可选 BM25 侧车）→ data/index/
 python3 scripts/build_index.py
 
-# 4) 基线：稠密/混合检索 + 生成
+# 4) 基线：稠密/混合检索 + rerank + 生成
 python3 scripts/run_baseline.py --query "What is retrieval-augmented generation?"
 
-# 5 题 smoke（draft 题集，无虚假 aggregate 分数）
-python3 scripts/run_baseline.py --limit 5
+# 5) Agentic LangGraph
+python3 scripts/run_agentic.py --query "How do agentic RAG systems differ from single-shot RAG?"
+
+# 5 题定性 eval
+python3 scripts/eval_all.py --limit 5
 ```
 
 详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
-Smoke 记录示例：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)。
-
-`run_agentic.py` / `eval_all.py` 仍为 **M2+ 占位**。
+Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)。
 
 ## 仓库布局
 

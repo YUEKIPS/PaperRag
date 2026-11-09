@@ -25,6 +25,7 @@ data/processed/**
 !data/processed/.gitkeep
 data/index/**
 !data/index/.gitkeep
+data/eval/runs/**
 *.faiss
 chroma/
 

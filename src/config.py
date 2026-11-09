@@ -17,3 +17,11 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
 
 def resolve_path(config: dict[str, Any], key: str) -> Path:
     return (REPO_ROOT / config["paths"][key]).resolve()
+
+
+def resolve_eval_runs_dir(config: dict[str, Any]) -> Path:
+    raw = str(config.get("eval", {}).get("output_dir", "data/eval/runs"))
+    p = Path(raw)
+    if p.is_absolute():
+        return p
+    return (REPO_ROOT / raw).resolve()

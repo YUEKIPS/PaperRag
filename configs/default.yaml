@@ -40,15 +40,20 @@ index:
 
 retriever:
   top_k: 10
-  # reranker: none  # M2+
+  # Cross-encoder after hybrid/RRF; CPU-friendly default (see D-009 in docs/decisions.md)
+  reranker:
+    enabled: true
+    model: cross-encoder/ms-marco-MiniLM-L-6-v2
+    candidate_pool: 30
 
 baseline:
   # Non-agentic retrieve-then-stub-generate for pipeline smoke tests
   max_context_chunks: 5
 
 agent:
-  # LangGraph: decide → retrieve → grade → rewrite → generate (not in round-1)
-  enabled: false
+  enabled: true
+  max_grade_rewrite_loops: 2
+  max_context_chunks: 5
 
 eval:
   output_dir: data/eval/runs

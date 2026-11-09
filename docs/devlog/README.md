@@ -63,5 +63,5 @@ docs/devlog/
 
 | 日期 | 日报 | 摘要 |
 |------|------|------|
-| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) | M0 立项 + M1 Baseline：FAISS、hybrid 原型、5 题 smoke |
-| 2026-11（月） | [monthly/2026-11.md](monthly/2026-11.md) | 11 月：M0/M1 交付，M2 Agentic 待启 |
+| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) | M0–M2：Baseline + LangGraph rerank + eval_all 定性 smoke |
+| 2026-11（月） | [monthly/2026-11.md](monthly/2026-11.md) | 11 月：M0/M1/M2 原型交付 |

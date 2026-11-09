@@ -11,7 +11,7 @@
 
 ## 本轮禁止事项
 
-- 不要声称已完成未实现的模块（尤其 Agentic grade/rewrite、rerank 生产化）
+- 不要声称已完成未实现的模块（尤其生产级 grade/rewrite、ColBERT rerank、Recall@k aggregate）
 - 不要编造评测数字或 dashboard 结果
 - 不要提交 `data/raw_pdfs/*.pdf`、向量库产物、`.env`
 - 不要在日志中粘贴密钥或完整私有对话
@@ -45,8 +45,8 @@
 | `scripts/ingest.py` | 解析 + 分块 |
 | `scripts/build_index.py` | 索引（当前为 JSONL 脚手架） |
 | `scripts/run_baseline.py` | 非 Agentic 基线烟测 |
-| `scripts/run_agentic.py` | **占位**，M2+ |
-| `scripts/eval_all.py` | **占位**，M1 检索稳定后 |
+| `scripts/run_agentic.py` | LangGraph agentic smoke |
+| `scripts/eval_all.py` | 批量定性 eval → `data/eval/runs/` |
 
 ## 配置
 
