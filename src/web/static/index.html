@@ -16,10 +16,20 @@
           <span class="brand-sub">论文 Agentic 问答</span>
         </div>
       </header>
-      <div class="sidebar-actions">
-        <button type="button" class="btn btn-primary" id="btn-new-session">新建对话</button>
+      <div class="sidebar-tabs" role="tablist" aria-label="侧栏">
+        <button type="button" class="sidebar-tab active" id="tab-sessions" role="tab" aria-selected="true" aria-controls="panel-sessions">对话</button>
+        <button type="button" class="sidebar-tab" id="tab-papers" role="tab" aria-selected="false" aria-controls="panel-papers">论文库</button>
       </div>
-      <nav class="session-list" id="session-list" aria-label="对话列表"></nav>
+      <div class="sidebar-panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
+        <div class="sidebar-actions">
+          <button type="button" class="btn btn-primary" id="btn-new-session">新建对话</button>
+        </div>
+        <nav class="session-list" id="session-list" aria-label="对话列表"></nav>
+      </div>
+      <div class="sidebar-panel" id="panel-papers" role="tabpanel" aria-labelledby="tab-papers" hidden>
+        <p class="paper-library-hint">语料来自 <code>configs/default.yaml</code> 与本地 PDF。</p>
+        <nav class="paper-list" id="paper-list" aria-label="论文列表"></nav>
+      </div>
       <footer class="sidebar-footer">
         <div class="status-row" id="health-status">
           <span class="status-dot" id="health-dot"></span>
@@ -50,6 +60,23 @@
         <p class="progress-label" id="progress-label">思考中…</p>
         <ul class="progress-steps" id="progress-steps"></ul>
       </div>
+
+      <aside class="paper-preview" id="paper-preview" hidden aria-label="论文预览">
+        <header class="paper-preview-header">
+          <div class="paper-preview-title-wrap">
+            <h2 class="paper-preview-title" id="paper-preview-title">论文预览</h2>
+            <p class="paper-preview-id" id="paper-preview-id"></p>
+          </div>
+          <div class="paper-preview-actions">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-insert-paper-query">插入提问</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-close-paper-preview" aria-label="关闭预览">关闭</button>
+          </div>
+        </header>
+        <div class="paper-preview-body">
+          <p class="paper-preview-empty" id="paper-preview-empty" hidden>本地暂无 PDF，可先运行 download_pdfs.py。</p>
+          <object class="paper-preview-object" id="paper-preview-object" type="application/pdf" title="PDF 预览"></object>
+        </div>
+      </aside>
 
       <form class="composer" id="composer-form">
         <textarea

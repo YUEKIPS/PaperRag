@@ -39,6 +39,18 @@
     renameDialogForm: document.getElementById("rename-dialog-form"),
     renameDialogInput: document.getElementById("rename-dialog-input"),
     renameDialogCancel: document.getElementById("rename-dialog-cancel"),
+    tabSessions: document.getElementById("tab-sessions"),
+    tabPapers: document.getElementById("tab-papers"),
+    panelSessions: document.getElementById("panel-sessions"),
+    panelPapers: document.getElementById("panel-papers"),
+    paperList: document.getElementById("paper-list"),
+    paperPreview: document.getElementById("paper-preview"),
+    paperPreviewTitle: document.getElementById("paper-preview-title"),
+    paperPreviewId: document.getElementById("paper-preview-id"),
+    paperPreviewObject: document.getElementById("paper-preview-object"),
+    paperPreviewEmpty: document.getElementById("paper-preview-empty"),
+    btnInsertPaperQuery: document.getElementById("btn-insert-paper-query"),
+    btnClosePaperPreview: document.getElementById("btn-close-paper-preview"),
   };
 
   let confirmDialogResolve = null;
@@ -52,6 +64,10 @@
   let progressIndex = 0;
   let sessionContextMenu = null;
   let contextMenuSessionId = null;
+  let papersCatalog = [];
+  let selectedPaperId = null;
+  let pdfObjectUrl = null;
+  let sidebarMode = "sessions";
 
   function api(path, options = {}) {
     const headers = {
@@ -191,6 +207,134 @@
       toast.classList.remove("visible");
       setTimeout(() => toast.remove(), 280);
     }, 4200);
+  }
+
+  async function fetchPaperPdf(paperId) {
+    const res = await fetch(`/api/papers/${encodeURIComponent(paperId)}/pdf`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.error || data.message || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
+    return res.blob();
+  }
+
+  function revokePdfObjectUrl() {
+    if (pdfObjectUrl) {
+      URL.revokeObjectURL(pdfObjectUrl);
+      pdfObjectUrl = null;
+    }
+    if (els.paperPreviewObject) {
+      els.paperPreviewObject.data = "";
+    }
+  }
+
+  function setSidebarTab(mode) {
+    sidebarMode = mode;
+    const sessions = mode === "sessions";
+    els.tabSessions.classList.toggle("active", sessions);
+    els.tabPapers.classList.toggle("active", !sessions);
+    els.tabSessions.setAttribute("aria-selected", sessions ? "true" : "false");
+    els.tabPapers.setAttribute("aria-selected", sessions ? "false" : "true");
+    els.panelSessions.hidden = !sessions;
+    els.panelPapers.hidden = sessions;
+  }
+
+  function paperDisplayTitle(paper) {
+    if (paper.title) return paper.title;
+    return paper.id;
+  }
+
+  function renderPaperList() {
+    if (!els.paperList) return;
+    els.paperList.innerHTML = "";
+    if (!papersCatalog.length) {
+      els.paperList.innerHTML =
+        '<p class="session-item-meta" style="padding:8px">暂无论文条目</p>';
+      return;
+    }
+    papersCatalog.forEach((paper) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "paper-item" + (paper.id === selectedPaperId ? " active" : "");
+      btn.dataset.id = paper.id;
+      const badgeClass = paper.has_pdf ? "ok" : "missing";
+      const badgeText = paper.has_pdf ? "PDF" : "缺失";
+      const sub =
+        paper.title && paper.title !== paper.id
+          ? `<span class="paper-item-title">${escapeHtml(paper.title)}</span>`
+          : "";
+      btn.innerHTML = `
+        <span class="paper-badge ${badgeClass}">${badgeText}</span>
+        <span class="paper-item-body">
+          <span class="paper-item-id">${escapeHtml(paper.id)}</span>
+          ${sub}
+        </span>`;
+      btn.addEventListener("click", () => openPaperPreview(paper));
+      els.paperList.appendChild(btn);
+    });
+  }
+
+  async function loadPapers() {
+    const data = await api("/api/papers");
+    papersCatalog = data.papers || [];
+    renderPaperList();
+  }
+
+  function closePaperPreview() {
+    revokePdfObjectUrl();
+    selectedPaperId = null;
+    els.paperPreview.hidden = true;
+    els.mainPane.classList.remove("main--paper-preview");
+    renderPaperList();
+  }
+
+  async function openPaperPreview(paper) {
+    selectedPaperId = paper.id;
+    renderPaperList();
+    els.paperPreview.hidden = false;
+    els.mainPane.classList.add("main--paper-preview");
+    const label = paperDisplayTitle(paper);
+    els.paperPreviewTitle.textContent = label;
+    els.paperPreviewId.textContent = paper.id;
+    els.btnInsertPaperQuery.disabled = false;
+
+    if (!paper.has_pdf) {
+      els.paperPreviewEmpty.hidden = false;
+      els.paperPreviewObject.hidden = true;
+      revokePdfObjectUrl();
+      return;
+    }
+
+    els.paperPreviewEmpty.hidden = true;
+    els.paperPreviewObject.hidden = false;
+    revokePdfObjectUrl();
+    try {
+      const blob = await fetchPaperPdf(paper.id);
+      pdfObjectUrl = URL.createObjectURL(blob);
+      els.paperPreviewObject.data = pdfObjectUrl;
+    } catch (e) {
+      els.paperPreviewEmpty.hidden = false;
+      els.paperPreviewEmpty.textContent = `无法加载 PDF：${e.message || e}`;
+      els.paperPreviewObject.hidden = true;
+    }
+  }
+
+  function insertPaperIntoComposer(paperId) {
+    const tag = `[${paperId}]`;
+    const cur = els.queryInput.value.trim();
+    if (!cur) {
+      els.queryInput.value = `关于论文 ${tag}：`;
+    } else if (!cur.includes(tag)) {
+      const sep = cur.endsWith(" ") ? "" : " ";
+      els.queryInput.value = `${cur}${sep}${tag} `;
+    }
+    setSidebarTab("sessions");
+    els.queryInput.focus();
   }
 
   function loadTheme() {
@@ -730,6 +874,24 @@
   });
 
   els.themeSelect.addEventListener("change", () => setTheme(els.themeSelect.value));
+  if (els.tabSessions) {
+    els.tabSessions.addEventListener("click", () => setSidebarTab("sessions"));
+  }
+  if (els.tabPapers) {
+    els.tabPapers.addEventListener("click", () => {
+      setSidebarTab("papers");
+      loadPapers().catch(() => {});
+    });
+  }
+  if (els.btnClosePaperPreview) {
+    els.btnClosePaperPreview.addEventListener("click", () => closePaperPreview());
+  }
+  if (els.btnInsertPaperQuery) {
+    els.btnInsertPaperQuery.addEventListener("click", () => {
+      if (!selectedPaperId) return;
+      insertPaperIntoComposer(selectedPaperId);
+    });
+  }
   els.inspectorClose.addEventListener("click", () => els.inspector.close());
   els.inspector.addEventListener("click", (e) => {
     if (e.target === els.inspector) els.inspector.close();
@@ -741,7 +903,9 @@
     loadTheme();
     refreshHealth();
     setInterval(refreshHealth, 45000);
+    setSidebarTab("sessions");
     await loadSessionList();
+    await loadPapers().catch(() => {});
     const data = await api("/api/sessions");
     if (data.sessions && data.sessions.length) {
       await switchSession(data.sessions[0].id);

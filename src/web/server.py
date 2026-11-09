@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlparse
 from src.agent.run import run_agentic_query
 from src.config import load_config, resolve_path
 from src.generate.llm import generator_mode, llm_endpoint_summary, resolve_api_key
+from src.web.papers import list_papers, resolve_paper_pdf
 from src.web.security import host_allowed, new_session_token, origin_allowed, token_from_request
 from src.web.sessions import SessionStore
 
@@ -119,6 +120,25 @@ class PaperRagHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_bytes(self, status: int, data: bytes, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_paper_pdf(self, paper_id: str) -> None:
+        if not self._api_allowed():
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+            return
+        pdf_path = resolve_paper_pdf(self.app_server.config, paper_id)
+        if pdf_path is None:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "pdf_not_found", "id": paper_id})
+            return
+        data = pdf_path.read_bytes()
+        self._send_bytes(HTTPStatus.OK, data, "application/pdf")
+
     def _serve_index(self) -> None:
         index_path = STATIC_DIR / "index.html"
         if not index_path.is_file():
@@ -186,6 +206,19 @@ class PaperRagHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                 return
             self._send_json(HTTPStatus.OK, session.to_dict())
+            return
+
+        if path == f"{API_PREFIX}/papers":
+            if not self._api_allowed():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
+                return
+            papers = list_papers(self.app_server.config)
+            self._send_json(HTTPStatus.OK, {"papers": papers})
+            return
+
+        m_paper_pdf = re.fullmatch(rf"{re.escape(API_PREFIX)}/papers/([^/]+)/pdf/?", path)
+        if m_paper_pdf:
+            self._serve_paper_pdf(unquote(m_paper_pdf.group(1)))
             return
 
         self.send_error(HTTPStatus.NOT_FOUND)
