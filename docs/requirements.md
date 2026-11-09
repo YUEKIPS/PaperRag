@@ -27,6 +27,7 @@
 
 - 回答必须附带 `paper_id` + 页码（+ chunk id）
 - Baseline：retrieve → generate；Agentic：grade / rewrite 循环 — **Agentic M2**
+- 同一会话的后续问题可带入最近问答以消解指代 — **M6**；往轮引用不是本轮证据
 
 ### F5 评测
 

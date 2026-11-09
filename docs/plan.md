@@ -1,6 +1,6 @@
 # 项目计划
 
-更新：2026-11-09（Asia/Shanghai）
+更新：2026-11-10（Asia/Shanghai）
 
 ## 里程碑
 
@@ -44,7 +44,16 @@
 - [x] `scripts/run_web.py`、`python -m src.web`；可选根目录 `.env` 加载
 - [ ] **未在本环境验证**：有索引时的浏览器端到端（云端快照无 `data/index/`）；本地 `build_index` 后手动打开 UI
 
-## 本轮之后建议的下一步（M5+）
+### M6 — 轻量多轮上下文 ✅（本轮交付）
+
+- [x] `/api/ask` 读取同一会话已有问答，传入 `run_agentic_query` 的 `conversation`
+- [x] 最近 6 个完整轮 + 24000 UTF-8 字节；超限整轮丢弃并记录 `omitted_turns`；单轮过长才截断回答（D-017）
+- [x] `decide` 把追问收成独立 `working_query`；检索仍只用该查询；generate 声明历史只用于消解指代
+- [x] API 返回带入/省略轮数；Web UI 回答下显示「带入 N 轮 / 省略 M 轮」
+- [x] `tests/test_history.py`（无 live LLM）
+- [ ] **未做**：RepoAgent Session 事件日志 / RequestMeter / 摘要压缩；有 API key 时的 contextualize 实网烟测
+
+## 本轮之后建议的下一步（M7+）
 
 1. 公式/多栏 PDF spot check；必要时调 chunk 策略
 2. 在 `eval_all` 上追加人工标注 gold chunk，再讨论是否做 Recall@k（仍不编造数字）

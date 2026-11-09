@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from src.agent.history import prior_conversation_from_turns
 from src.agent.run import run_agentic_query
 from src.config import load_config, resolve_path
 from src.generate.llm import generator_mode, llm_endpoint_summary, resolve_api_key
@@ -291,12 +292,19 @@ class PaperRagHandler(BaseHTTPRequestHandler):
             exercise = bool(body.get("exercise_rewrite"))
 
             with self.app_server._ask_lock:
+                # Re-read inside the lock so a follow-up sees turns just appended.
+                session = self.app_server.sessions.get(str(session_id))
+                if session is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "session_not_found"})
+                    return
+                prior = prior_conversation_from_turns(session.turns)
                 try:
                     result = run_agentic_query(
                         query,
                         index_dir,
                         self.app_server.config,
                         exercise_strict_grade=exercise,
+                        conversation=prior,
                     )
                 except Exception as exc:  # noqa: BLE001 — surface to local UI
                     self._send_json(
@@ -304,9 +312,8 @@ class PaperRagHandler(BaseHTTPRequestHandler):
                         {"error": "agent_failed", "message": str(exc)},
                     )
                     return
-
-            turn = self.app_server.sessions.append_turn(str(session_id), query, result)
-            session = self.app_server.sessions.get(str(session_id))
+                turn = self.app_server.sessions.append_turn(str(session_id), query, result)
+                session = self.app_server.sessions.get(str(session_id))
             self._send_json(
                 HTTPStatus.OK,
                 {

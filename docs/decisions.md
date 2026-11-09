@@ -156,3 +156,15 @@
 - **决策**：点选论文库条目时，主区右侧滑出抽屉（可关闭、Esc 关闭），不再把浏览器 PDF 插件嵌在对话下方。PDF 仍由 `GET /api/papers/{id}/pdf` + Bearer 取回字节，交给 vendored PDF.js 4.8.69（`src/web/static/vendor/pdfjs/`，`pdf.min.mjs` + worker）画到 canvas。翻页与缩放用自有工具条，不用系统插件工具条。抽屉只盖住消息区右侧；底栏 composer 保持在抽屉之外，插入提问后可直接输入。关闭抽屉时焦点回到输入框。
 - **背景**：底部半屏 `<object type="application/pdf">` 会拉起 Chrome 自带插件（深色工具条），阅读区过矮。
 - **后果**：静态多 `pdf-view.js` 与 PDF.js vendor（Apache-2.0）；`.mjs` 以 `text/javascript` 提供给 module worker。不拉 arXiv，不引入 npm 构建。
+
+---
+
+## D-017 — 轻量多轮上下文（非 RepoAgent Session 栈）
+
+- **日期**：2026-11-10
+- **状态**：已接受
+- **决策**：同一 Web 会话的后续提问，在 `/api/ask` 里读取**已有**问答（只要 question + answer，不拷贝引用），作为 `conversation` 传入 `run_agentic_query`。选择策略：最近 **6** 个完整轮，且 question+answer 的 UTF-8 合计不超过 **24000** 字节。超预算时先整轮丢掉更早的轮次，并计入 `omitted_turns`；只有最新一轮单独仍放不下时，才截断该轮回答（问题能放下就保留问题）。空问题或空回答不算完整轮，也不计入 omitted。本仓没有单独的模型输入预算旋钮，24KB 约按 ~96KB 文本预算的 1/4 取上限，写在 `agent.conversation`（`configs/default.yaml`）。
+- **Agent**：`decide` 在第一次检索前把追问收成可独立检索的 `working_query`（无 API 时，stub 把「它 / 第二点 / this」这类指代锚到上一问；`AGENT_GENERATOR=openai` 时用 `prompts/contextualize_system.txt`，失败再回 stub）。原有 `rewrite` 仍是 grade 失败后的检索改写，并看到一段压缩历史，避免把已消解的实体改回代词。`retrieve` 只用 `working_query`，不把往轮引用当本轮证据。`generate` 附上历史块，并写明历史只用于消解指代；结论和引用必须来自本轮 chunk。
+- **API / UI**：结果带 `history_included_turns`、`history_omitted_turns`、`history_policy`（以及 `history_truncated_answers`）。回答下方在任一计数非 0 时显示「带入 N 轮 / 省略 M 轮」。
+- **明确不移植**：RepoAgent 的 ConversationSession 事件日志、Surface、RequestMeter、摘要服务、tool compaction。
+- **后果**：`src/agent/history.py`、`tests/test_history.py`（无索引、无 live DeepSeek）。首问不显示 0/0 那一行。

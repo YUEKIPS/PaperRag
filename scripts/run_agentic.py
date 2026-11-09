@@ -85,6 +85,10 @@ def main() -> int:
                     "citations": result.citations,
                     "answer": result.answer,
                     "trace": result.trace,
+                    "history_included_turns": result.history_included_turns,
+                    "history_omitted_turns": result.history_omitted_turns,
+                    "history_policy": result.history_policy,
+                    "history_truncated_answers": result.history_truncated_answers,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -97,6 +101,10 @@ def main() -> int:
         print(f"Grade: passed={result.grade_passed} ({result.grade_reason})")
         print(f"Rewrite iterations: {result.iterations}")
         print(f"Chunks: {result.num_chunks}, generator={result.generator}")
+        print(
+            f"History: included={result.history_included_turns} "
+            f"omitted={result.history_omitted_turns} policy={result.history_policy}"
+        )
         print(result.answer)
         print("Citations:", json.dumps(result.citations, ensure_ascii=False, indent=2))
         print("Trace:", json.dumps(result.trace, ensure_ascii=False, indent=2))

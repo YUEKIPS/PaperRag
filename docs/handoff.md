@@ -1,18 +1,19 @@
 # 交接说明
 
-最后更新：2026-11-09
+最后更新：2026-11-10
 
 ## 仓库状态
 
-- **已完成**：M0 + **M1 Baseline** + **M2 Agentic 原型** + **M3 LLM 钩子** + **M4 本地 Web UI**（`scripts/run_web.py`）
-- **未完成**：Recall@k 自动指标、ColBERT / 大 rerank、学习型 decide
+- **已完成**：M0 + **M1 Baseline** + **M2 Agentic 原型** + **M3 LLM 钩子** + **M4 本地 Web UI**（`scripts/run_web.py`）+ **M6 轻量多轮**（D-017，最近 6 轮 / 24KB）
+- **未完成**：Recall@k 自动指标、ColBERT / 大 rerank、学习型 decide、RepoAgent 式 Session 事件日志
 
 ## 本地 / 云端继续 checklist
 
 1. Clone / pull（本 PR 合并后的 `main`）
 2. `pip install -r requirements.txt`（含 `langgraph`）
 3. 四步 CLI：`download_pdfs` → `ingest` → `build_index` → `run_baseline` 或 `run_agentic`（见 [guides/ingest.md](guides/ingest.md)）
-3b. 浏览器问答：`python3 scripts/run_web.py`（需已 `build_index`；默认 http://127.0.0.1:8765/）
+3b. 浏览器问答：`python3 scripts/run_web.py`（需已 `build_index`；默认 http://127.0.0.1:8765/）。同一会话的追问会带入最近问答；回答下若有历史会显示「带入 N 轮 / 省略 M 轮」。
+3c. 多轮单元测试（无需索引或 API key）：`python3 -m unittest tests.test_history -v`
 4. 可选 LLM：`BASELINE_GENERATOR=openai` 或 `AGENT_GENERATOR=openai` + `OPENAI_API_KEY`
 5. 批量定性 eval：`python3 scripts/eval_all.py --limit 5`（产物在 `data/eval/runs/`）
 6. Rerank 消融：`--no-rerank` on baseline / agentic / eval_all

@@ -45,6 +45,10 @@ class TurnRecord:
                 "iterations": result.iterations,
                 "trace": result.trace,
                 "num_chunks": result.num_chunks,
+                "history_included_turns": result.history_included_turns,
+                "history_omitted_turns": result.history_omitted_turns,
+                "history_policy": result.history_policy,
+                "history_truncated_answers": result.history_truncated_answers,
             },
         )
 

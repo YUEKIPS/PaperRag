@@ -1,4 +1,7 @@
-"""LangGraph agentic orchestrator (decide → retrieve → grade → rewrite → generate)."""
+"""LangGraph agentic orchestrator (decide → retrieve → grade → rewrite → generate).
+
+decide turns a follow-up into a standalone working query when session history is present.
+"""
 
 from src.agent.run import AgenticResult, run_agentic_query
 

@@ -6,6 +6,11 @@ import re
 from pathlib import Path
 from typing import Any
 
+from src.agent.history import (
+    contextualize_query,
+    format_history_block,
+    history_turns_from_state,
+)
 from src.agent.state import AgentState
 from src.generate.baseline import generate_baseline_answer
 from src.generate.llm import generator_mode, try_openai_chat
@@ -20,16 +25,35 @@ def _append_trace(state: AgentState, event: str, detail: dict[str, Any]) -> list
 
 
 def decide_node(state: AgentState) -> dict[str, Any]:
-    """Passthrough decide: use original query; agentic routing hooks reserved for later."""
+    """Set the search query. Follow-ups are rewritten into a standalone working_query.
+
+    Routing stays a passthrough. History is used only for coreference; it is not
+    retrieved as evidence. The grade-failure rewrite node still runs later.
+    """
     query = state["query"]
+    turns = history_turns_from_state(state)
+    resolved = contextualize_query(query, turns, config=state.get("config") or {})
     return {
-        "working_query": query,
+        "working_query": resolved.working_query,
         "iterations": int(state.get("iterations") or 0),
-        "trace": _append_trace(state, "decide", {"working_query": query}),
+        "trace": _append_trace(
+            state,
+            "decide",
+            {
+                "working_query": resolved.working_query,
+                "contextualized": resolved.changed,
+                "contextualize_backend": resolved.backend,
+                "llm_fallback": resolved.llm_fallback,
+                "history_included_turns": int(state.get("history_included_turns") or 0),
+                "history_omitted_turns": int(state.get("history_omitted_turns") or 0),
+                "history_policy": state.get("history_policy") or "",
+            },
+        ),
     }
 
 
 def retrieve_node(state: AgentState) -> dict[str, Any]:
+    """Retrieve from the working query only. Prior answers and citations are not hits."""
     config = state["config"]
     index_dir = Path(state["index_dir"])
     q = state.get("working_query") or state["query"]
@@ -196,9 +220,19 @@ def _llm_rewrite(
     query: str,
     reason: str,
     config: dict[str, Any],
+    history_block: str | None = None,
 ) -> tuple[str | None, str | None]:
     system = load_prompt("rewrite_system")
-    user = f"Original: {query}\nGrade feedback: {reason}"
+    parts: list[str] = []
+    if history_block:
+        parts.append(history_block)
+        parts.append(
+            "Use the conversation only to keep entities that are already resolved. "
+            "Do not treat it as evidence and do not answer."
+        )
+    parts.append(f"Current query: {query}")
+    parts.append(f"Grade feedback: {reason}")
+    user = "\n\n".join(parts)
     return try_openai_chat(
         [
             {"role": "system", "content": system},
@@ -214,12 +248,13 @@ def rewrite_node(state: AgentState) -> dict[str, Any]:
     query = state.get("working_query") or state["query"]
     reason = state.get("grade_reason") or ""
     config = state.get("config") or {}
+    history_block = format_history_block(history_turns_from_state(state))
     new_q = _stub_rewrite(query, reason)
     rewrite_backend = "stub"
     llm_fallback: str | None = None
 
     if generator_mode(agent=True) == "openai":
-        llm_q, err = _llm_rewrite(query, reason, config)
+        llm_q, err = _llm_rewrite(query, reason, config, history_block or None)
         if llm_q and not err:
             new_q = llm_q.strip()
             rewrite_backend = "llm"
@@ -248,7 +283,14 @@ def generate_node(state: AgentState) -> dict[str, Any]:
     query = state["query"]
     chunks = state.get("chunks") or []
     config = state.get("config") or {}
-    result = generate_baseline_answer(query, chunks, config=config, from_agent=True)
+    history_block = format_history_block(history_turns_from_state(state))
+    result = generate_baseline_answer(
+        query,
+        chunks,
+        config=config,
+        from_agent=True,
+        history_block=history_block or None,
+    )
 
     return {
         "answer": result.answer,

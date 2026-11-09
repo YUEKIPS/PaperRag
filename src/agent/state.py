@@ -22,3 +22,9 @@ class AgentState(TypedDict, total=False):
     rerank_enabled: bool
     # When true, stub grade uses stricter token overlap (rewrite-loop smoke without API).
     exercise_strict_grade: bool
+    # Selected prior turns only ({question, answer}). Not evidence for this turn.
+    conversation: list[dict[str, str]]
+    history_included_turns: int
+    history_omitted_turns: int
+    history_policy: str
+    history_truncated_answers: int

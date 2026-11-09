@@ -52,6 +52,10 @@ def agentic_result_to_dict(result: AgenticResult) -> dict[str, Any]:
         "iterations": result.iterations,
         "trace": result.trace,
         "num_chunks": result.num_chunks,
+        "history_included_turns": result.history_included_turns,
+        "history_omitted_turns": result.history_omitted_turns,
+        "history_policy": result.history_policy,
+        "history_truncated_answers": result.history_truncated_answers,
     }
 
 
@@ -60,6 +64,7 @@ def ask_question(
     *,
     config_path: Path | None = None,
     rerank_enabled: bool | None = None,
+    conversation: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     text = (query or "").strip()
     if not text:
@@ -78,5 +83,6 @@ def ask_question(
         index_dir,
         config,
         rerank_enabled=rerank_enabled,
+        conversation=conversation,
     )
     return agentic_result_to_dict(result)

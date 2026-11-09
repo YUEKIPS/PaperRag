@@ -100,6 +100,9 @@ def run_agentic_eval(
             "citations": ar.citations,
             "answer_preview": ar.answer[:2000],
             "trace": ar.trace,
+            "history_included_turns": ar.history_included_turns,
+            "history_omitted_turns": ar.history_omitted_turns,
+            "history_policy": ar.history_policy,
         }
         (run_dir / f"{qid}.json").write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"

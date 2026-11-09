@@ -61,6 +61,7 @@
 - **M2**：混合检索 + rerank + LangGraph Agentic 环 — **已完成**
 - **M3**：LLM grade/rewrite（DeepSeek 兼容 HTTP）— **已完成**（全 LLM smoke 需 API key）
 - **M4**：本地 Web 问答 UI（stdlib HTTP + 静态页）— **已完成**（端到端需本地索引）
+- **M6**：同一会话轻量多轮（最近 6 轮 / 24KB，decide 消解指代）— **已完成**（无 live LLM 单测；全 LLM contextualize 需 API key）
 
 LLM 环境变量：`AGENT_GENERATOR=openai`、`DEEPSEEK_API_KEY`（或 `OPENAI_API_KEY`）、可选 `OPENAI_BASE_URL` / `OPENAI_MODEL`（见 `configs/default.yaml` `llm`）。
 

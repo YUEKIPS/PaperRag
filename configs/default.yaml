@@ -54,6 +54,11 @@ agent:
   enabled: true
   max_grade_rewrite_loops: 2
   max_context_chunks: 5
+  # D-017: same-session history. No separate model input budget; 24KB is the cap
+  # (about 1/4 of a ~96KB text budget) plus at most the last 6 complete turns.
+  conversation:
+    max_turns: 6
+    max_history_bytes: 24000
 
 # OpenAI-compatible chat/completions (defaults target DeepSeek).
 # Override with env: DEEPSEEK_API_KEY or OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL.

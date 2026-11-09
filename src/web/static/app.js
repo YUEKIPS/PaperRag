@@ -542,6 +542,26 @@
     }
   }
 
+  function historyCounts(result) {
+    if (!result) return null;
+    if (result.history_included_turns == null && result.history_omitted_turns == null) {
+      return null;
+    }
+    const included = Number(result.history_included_turns) || 0;
+    const omitted = Number(result.history_omitted_turns) || 0;
+    if (!included && !omitted) return null;
+    return { included, omitted };
+  }
+
+  function appendHistoryNote(bubble, result) {
+    const counts = historyCounts(result);
+    if (!counts) return;
+    const note = document.createElement("p");
+    note.className = "history-note";
+    note.textContent = `带入 ${counts.included} 轮 / 省略 ${counts.omitted} 轮`;
+    bubble.appendChild(note);
+  }
+
   function ensureSessionContextMenu() {
     if (sessionContextMenu) return sessionContextMenu;
     const menu = document.createElement("div");
@@ -764,10 +784,12 @@
     if (animate && answerSpan) {
       revealAnswer(answerSpan, answerText, () => {
         renderAnswerMarkdown(bubble, answerText);
+        appendHistoryNote(bubble, result);
         requestAnimationFrame(() => chips.classList.add("revealed"));
       });
     } else {
       renderAnswerMarkdown(bubble, answerText);
+      appendHistoryNote(bubble, result);
       chips.classList.add("revealed");
     }
 
@@ -932,11 +954,18 @@
       cites += `<li>${escapeHtml(c.paper_id)} · page ${c.page} · ${escapeHtml(c.chunk_id || "")}</li>`;
     });
 
+    const history = historyCounts(r);
+    const historyLine = history
+      ? `<p class="history-note">带入 ${history.included} 轮 / 省略 ${history.omitted} 轮${
+          r.history_policy ? " · " + escapeHtml(r.history_policy) : ""
+        }</p>`
+      : "";
     els.inspectorBody.innerHTML = `
       <div class="inspector-section">
         <h3>查询</h3>
         <p>${escapeHtml(turn.query)}</p>
         <p style="color:var(--text-muted);font-size:0.82rem">Working: ${escapeHtml(r.working_query || "")}</p>
+        ${historyLine}
       </div>
       <div class="inspector-section">
         <h3>Grade</h3>

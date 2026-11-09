@@ -41,6 +41,24 @@ def _stub_answer(query: str, context: str) -> str:
     )
 
 
+_HISTORY_INSTRUCTION = (
+    "The prior conversation is only for resolving references in the question "
+    "(pronouns, 它, 第二点, this, and similar). "
+    "It is not evidence. Conclusions and citations must come only from this turn's context excerpts."
+)
+
+
+def build_generate_user_message(query: str, context: str, history_block: str | None = None) -> str:
+    """User message for generate. History, when present, is reference resolution only."""
+    parts: list[str] = []
+    if history_block and history_block.strip():
+        parts.append(history_block.strip())
+        parts.append(_HISTORY_INSTRUCTION)
+    parts.append(f"Question: {query}")
+    parts.append(f"Context:\n{context}")
+    return "\n\n".join(parts)
+
+
 def _use_llm(*, from_agent: bool) -> bool:
     if from_agent:
         from src.generate.llm import generator_mode
@@ -55,6 +73,7 @@ def generate_baseline_answer(
     *,
     config: dict[str, Any] | None = None,
     from_agent: bool = False,
+    history_block: str | None = None,
 ) -> BaselineAnswer:
     """
     Default: stable citation-shaped stub.
@@ -73,7 +92,7 @@ def generate_baseline_answer(
 
     if _use_llm(from_agent=from_agent):
         system = load_prompt("generate_system")
-        user = f"Question: {query}\n\nContext:\n{context}"
+        user = build_generate_user_message(query, context, history_block)
         text, err = try_openai_chat(
             [
                 {"role": "system", "content": system},
