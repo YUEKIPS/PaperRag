@@ -4,16 +4,16 @@
 
 与 [RepoAgent](https://github.com/)（代码仓 Agent）互补：RepoAgent 管代码仓库；本项目管 **非代码论文知识库**。
 
-> **当前状态（2026-11-09）**：文档与 Git 基线 + 可运行 **脚手架**（download → ingest → index → baseline 烟测）。完整 Agentic 编排、生产级 rerank、评测报表与 UI **尚未实现**。
+> **当前状态（2026-11-09）**：**M1 Baseline RAG** 已落地 — download → ingest → **FAISS 稠密索引**（+ BM25/RRF 原型）→ baseline 检索与 stub/可选 LLM 生成。LangGraph Agentic、生产级 rerank、aggregate 评测 **未** 实现。
 
 ## 功能模块（目标）
 
 | 模块 | 说明 |
 |------|------|
 | `parser` | PDF 解析（PyMuPDF） |
-| `indexer` | 分块、向量 / 混合索引 |
-| `embed` | 嵌入模型（M1+） |
-| `retriever` | 检索 + 融合 |
+| `indexer` | 分块、FAISS 向量 / BM25 侧车 |
+| `embed` | `src/indexer/embed.py` — sentence-transformers |
+| `retriever` | 稠密 + 可选 RRF |
 | `reranker` | 交叉编码器重排（M2+） |
 | `orchestrator` | LangGraph：decide → retrieve → grade → rewrite → generate |
 | `generate` | 带引用的回答生成 |
@@ -22,7 +22,7 @@
 ## 环境要求
 
 - Python 3.11+
-- 磁盘：存放 `data/raw_pdfs/`（约 12 篇 M1 论文，数十 MB）
+- 磁盘：存放 `data/raw_pdfs/`（约 12 篇 M1 论文，数十 MB）；首次 `build_index` 会下载嵌入模型权重
 
 ## 安装
 
@@ -33,30 +33,43 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-配置见 `configs/default.yaml`。敏感信息放 `.env`（已在 `.gitignore` 中忽略）；脚手架阶段不强制 API Key。
+配置见 `configs/default.yaml`。敏感信息放 `.env` 或环境变量（已在 `.gitignore` 中忽略 `.env`）。
+
+### 可选：LLM 生成
+
+```bash
+export BASELINE_GENERATOR=openai
+export OPENAI_API_KEY=sk-...
+# 可选：OPENAI_BASE_URL、OPENAI_MODEL（默认 gpt-4o-mini）
+```
+
+未设置时 `run_baseline.py` 使用 **stub**（摘录 + 引用），适合无 API 烟测。
 
 ## 快速路径：download → ingest → index → baseline
 
-在仓库根目录执行（需先 `pip install -r requirements.txt`）：
+在仓库根目录执行：
 
 ```bash
 # 1) 下载 M1 arXiv PDF（列表见 configs/default.yaml）
-python scripts/download_pdfs.py
+python3 scripts/download_pdfs.py
 
 # 2) 解析 PDF 并写出分块 JSONL → data/processed/
-python scripts/ingest.py
+python3 scripts/ingest.py
 
-# 3) 构建最小 JSONL 索引 → data/index/
-python scripts/build_index.py
+# 3) 构建 FAISS 索引（+ 可选 BM25 侧车）→ data/index/
+python3 scripts/build_index.py
 
-# 4) 基线烟测：关键词检索 + 占位生成（非 LLM）
-python scripts/run_baseline.py --query "What is retrieval-augmented generation?"
+# 4) 基线：稠密/混合检索 + 生成
+python3 scripts/run_baseline.py --query "What is retrieval-augmented generation?"
 
-# 或使用 draft 评测题（前 1 道）
-python scripts/run_baseline.py --limit 1
+# 5 题 smoke（draft 题集，无虚假 aggregate 分数）
+python3 scripts/run_baseline.py --limit 5
 ```
 
-**说明**：`run_baseline.py` 当前为 **stub 生成器**，用于验证流水线；不输出虚假评测分数。`run_agentic.py` / `eval_all.py` 为占位入口。
+详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
+Smoke 记录示例：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)。
+
+`run_agentic.py` / `eval_all.py` 仍为 **M2+ 占位**。
 
 ## 仓库布局
 

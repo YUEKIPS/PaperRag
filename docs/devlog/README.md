@@ -63,5 +63,5 @@ docs/devlog/
 
 | 日期 | 日报 | 摘要 |
 |------|------|------|
-| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) | M0 立项：文档、Git 基线、Python 脚手架与 devlog 落地 |
-| 2026-11（月） | [monthly/2026-11.md](monthly/2026-11.md) | 11 月：项目启动与 M0 交付 |
+| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) | M0 立项 + M1 Baseline：FAISS、hybrid 原型、5 题 smoke |
+| 2026-11（月） | [monthly/2026-11.md](monthly/2026-11.md) | 11 月：M0/M1 交付，M2 Agentic 待启 |

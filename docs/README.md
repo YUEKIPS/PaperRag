@@ -9,10 +9,10 @@
 | [handoff.md](handoff.md) | 交接说明（可选维护） |
 | [devlog/README.md](devlog/README.md) | 开发日志规范与索引 |
 
-## 报告与指南（预留）
+## 报告与指南
 
-- `guides/` — 操作手册（M1 起补充）
-- `reports/` — 评测与实验报告（有真实数据后再写）
+- [guides/ingest.md](guides/ingest.md) — 下载、ingest、FAISS 索引、baseline 运行
+- [reports/smoke_m1_baseline.md](reports/smoke_m1_baseline.md) — M1 五题 smoke（无 aggregate 分数）
 
 ## 外部参考
 
