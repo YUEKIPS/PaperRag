@@ -1,125 +1,99 @@
-# Agentic Paper RAG
+# PaperRag
 
-面向 LLM / Agent 论文库的 **Agentic RAG**：检索工具化 + grade + rewrite（LangGraph 编排），底层混合检索（向量 + BM25 / RRF）+ rerank + 带页码引用。
+**Agentic Paper RAG**（`agentic-paper-rag`）是一个本地论文问答项目。语料是公开 arXiv 上的 LLM / Agent 论文 PDF。你提问后，它检索相关片段，再给出带页码出处的回答。
 
-与 [RepoAgent](https://github.com/)（代码仓 Agent）互补：RepoAgent 管代码仓库；本项目管 **非代码论文知识库**。
+公开仓库是 [PaperRag](https://github.com/YUEKIPS/PaperRag)。配置里的项目名，以及一些已有的本地目录，仍叫 `agentic-paper-rag`。
 
-> **当前状态（2026-11-10）**：**M6** — 同一 Web 会话的追问会带入最近问答（最多 6 轮、24KB；见 D-017）。检索仍用改写后的当前查询。无 Recall@k aggregate；decide 路由学习与 ColBERT 级 rerank **未** 做。
+编排使用 LangGraph，顺序是 **decide → retrieve → grade → rewrite → generate**：先把问题整理成可以检索的问法，再检索、检查片段是否够用、必要时改写问题，最后生成回答。检索是混合的：向量与 BM25 用 RRF 融合，然后做 cross-encoder 重排。
 
-## 功能模块（目标）
+## 功能
 
-| 模块 | 说明 |
-|------|------|
-| `parser` | PDF 解析（PyMuPDF） |
-| `indexer` | 分块、FAISS 向量 / BM25 侧车 |
-| `embed` | `src/indexer/embed.py` — sentence-transformers |
-| `retriever` | 稠密 + RRF（`pipeline.py`） |
-| `rerank` | Cross-encoder 重排（可 `--no-rerank`） |
-| `agent` | LangGraph：decide → retrieve → grade → rewrite → generate |
-| `generate` | 带引用的回答生成 |
-| `eval` | 离线评测 |
-| `web` | 本地 stdlib HTTP + 静态页问答 UI |
+- 按配置中的 arXiv 编号下载 PDF，解析文本并建立索引
+- 向量检索（FAISS）与 BM25 混合，再用 cross-encoder 重排
+- 回答附带论文编号、页码和片段编号
+- 本机网页：多会话聊天、论文库、PDF 预览、Markdown 回答
+- 同一会话的后续问题会带上最近的完整问答（最多 **6** 轮，这些问题和回答的 UTF-8 合计不超过 **24000** 字节）。这些内容用来理解「它」「上面」这类指代。检索针对整理后的当前问题，引用对应该轮检索到的片段。带入或省略的轮数会显示在回答下方
 
-## 环境要求
+## 环境
 
-- Python 3.11+
-- 磁盘：存放 `data/raw_pdfs/`（约 12 篇 M1 论文，数十 MB）；首次 `build_index` 会下载嵌入模型权重
+- Python 3.11 及以上
+- 默认清单约 12 篇 PDF，占几十 MB。第一次建索引会下载嵌入模型，第一次检索重排会下载重排模型
 
 ## 安装
 
 ```bash
-cd agentic-paper-rag   # 仓库根目录
+git clone https://github.com/YUEKIPS/PaperRag.git
+cd PaperRag
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-配置见 `configs/default.yaml`。敏感信息放 `.env` 或环境变量（已在 `.gitignore` 中忽略 `.env`）。
+本地文件夹如果仍叫 `agentic-paper-rag`，进入那个目录后执行同样的命令。下面的命令都在仓库根目录运行。
 
-### 可选：LLM（OpenAI-compatible，默认示例 DeepSeek）
+## 配置
+
+常用项在 `configs/default.yaml`：
+
+| 配置 | 作用 |
+|------|------|
+| `arxiv.paper_ids` | 要下载的论文编号。默认 12 篇 |
+| `ingest.chunk_size` / `ingest.chunk_overlap` | 分块大小与重叠，默认 512 / 64 个字符 |
+| `index.embedding_model` | 嵌入模型，默认 `sentence-transformers/all-MiniLM-L6-v2` |
+| `index.hybrid.enabled` | 是否启用 BM25，并在检索时与向量结果做 RRF |
+| `retriever.reranker` | 重排开关与模型，默认 `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+| `agent.conversation` | 同一会话带入的轮数和字节上限（6 轮、24000 字节） |
+| `llm.base_url` / `llm.model` | 对话接口，默认 `https://api.deepseek.com/v1` 与 `deepseek-chat` |
+
+密钥放在环境变量或仓库根目录的 `.env`（已被 Git 忽略）。可以从 `.env.example` 复制：
 
 ```bash
-# Agentic grade + rewrite + generate（推荐）
 export AGENT_GENERATOR=openai
-export DEEPSEEK_API_KEY=...
-
-# Baseline-only generation（不设 AGENT_GENERATOR 时）
-export BASELINE_GENERATOR=openai
-
-# 也可用 OPENAI_API_KEY；其它兼容端点：
-# export OPENAI_BASE_URL=https://api.deepseek.com/v1   # default in configs/default.yaml
-# export OPENAI_MODEL=deepseek-chat                    # or gpt-4o-mini, etc.
+export DEEPSEEK_API_KEY=你的密钥
 ```
 
-未设置 key 时节点回退 **stub**（摘录 + 引用）；trace 会记录 `llm_fallback`。适合无 API 烟测。
+也可以使用 `OPENAI_API_KEY`。换其它兼容端点时设置 `OPENAI_BASE_URL` 和 `OPENAI_MODEL`。
 
-`AGENT_GENERATOR=openai` 表示「兼容 chat/completions LLM」，不是 OpenAI 厂商锁定。Agentic 节点优先读 `AGENT_GENERATOR`，否则回退 `BASELINE_GENERATOR`。
+`AGENT_GENERATOR=openai` 表示使用 OpenAI 兼容的 `chat/completions` 接口，默认示例是 DeepSeek。网页和 `run_agentic.py` 使用 `AGENT_GENERATOR`。`run_baseline.py` 使用 `BASELINE_GENERATOR`。
 
-Rewrite 环烟测（无 API）：`run_agentic.py --exercise-rewrite` 或 eval 题 `q006`/`q007`。
+未配置密钥时，回答由检索到的原文摘录和页码引用组成。配置密钥后，由模型写回答，语言与提问一致。
 
-## 快速路径：download → ingest → index → baseline / agentic
-
-在仓库根目录执行：
+## 准备语料并提问
 
 ```bash
-# 1) 下载 M1 arXiv PDF（列表见 configs/default.yaml）
 python3 scripts/download_pdfs.py
-
-# 2) 解析 PDF 并写出分块 JSONL → data/processed/
 python3 scripts/ingest.py
-
-# 3) 构建 FAISS 索引（+ 可选 BM25 侧车）→ data/index/
 python3 scripts/build_index.py
 
-# 4) 基线：稠密/混合检索 + rerank + 生成
-python3 scripts/run_baseline.py --query "What is retrieval-augmented generation?"
-
-# 5) Agentic LangGraph
 python3 scripts/run_agentic.py --query "How do agentic RAG systems differ from single-shot RAG?"
-
-# 5 题定性 eval
-python3 scripts/eval_all.py --limit 5
 ```
 
-### 本地 Web UI（论文问答）
+基线路径是检索后直接生成：
 
-构建索引后可在本机浏览器使用多会话聊天界面（stdlib HTTP + 静态资源，**仅绑定 127.0.0.1**）：
+```bash
+python3 scripts/run_baseline.py --query "What is retrieval-augmented generation?"
+```
+
+PDF、分块和索引写在 `data/` 下，默认不提交到 Git。换论文清单后，重新执行上面的下载、解析和建索引。
+
+更细的步骤、引用字段和常见报错见 [docs/guides/ingest.md](docs/guides/ingest.md)。
+
+## 网页
+
+索引建好后启动本机页面：
 
 ```bash
 python3 scripts/serve_web.py
-# 默认 http://127.0.0.1:8765/
 ```
 
-功能：左侧 **对话 / 论文库** 切换（论文列表、点选后右侧抽屉用 vendored **PDF.js** 画布预览、**插入提问** 写入 `[arXiv id]`）；会话列表（持久化在 `data/web/sessions/`，已 gitignore；**右键**重命名 / 归档 / 删除）、Ink/Slate/Sand 主题、composer 进度与分阶段展示、助手回答 **Markdown 渲染**（vendored `marked` + 安全 DOM）、回答详情（grade / rewrite / trace / citations）。同一会话的后续问题会带入最近完整问答（最多 6 轮、约 24KB）；回答下方显示「带入 N 轮 / 省略 M 轮」。API 需页面内注入的 session token；PDF 仍由前端 `fetch` + Bearer 取字节（无 URL token），不使用浏览器 PDF 插件；后端调用 `run_agentic_query`；generate 提示词要求模型输出简洁 Markdown，且历史只用于消解指代。
+浏览器打开 <http://127.0.0.1:8765/>。服务只接受本机访问。
 
-多轮策略单测（不需要索引或 API key）：
-
-```bash
-python3 -m unittest tests.test_history -v
-```
-
-详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
-Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)、[docs/reports/smoke_m3_llm_agentic.md](docs/reports/smoke_m3_llm_agentic.md)。
-
-## 仓库布局
-
-```
-agentic-paper-rag/
-  AGENTS.md
-  configs/default.yaml
-  data/raw_pdfs/ data/processed/ data/index/ data/eval/
-  docs/          # 需求、计划、架构、开发日志
-  scripts/       # CLI 入口
-  src/           # 库代码
-```
-
-详细文档索引见 [docs/README.md](docs/README.md)。
-
-## 文档与协作
-
-- 代理 / 自动化协作规范：[AGENTS.md](AGENTS.md)
-- 开发日志（Asia/Shanghai）：[docs/devlog/README.md](docs/devlog/README.md)
+- **对话**：新建会话并提问。会话保存在本机，可以重命名、归档或删除
+- **论文库**：列出配置中的论文和本地 PDF。点开后在右侧预览，并用「插入提问」把该论文编号写入输入框
+- 回答以 Markdown 显示。可以展开查看片段是否通过检查、问题如何被改写，以及引用
+- 主题有 Ink、Slate、Sand
+- 若这一轮用到了更早的问答，回答下方会显示「带入 N 轮 / 省略 M 轮」
 
 ## 许可证
 
-待定（M1 前补充）。
+尚未选定。
