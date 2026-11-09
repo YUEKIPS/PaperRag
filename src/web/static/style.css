@@ -1,0 +1,263 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #1a1d23;
+  --muted: #5c6570;
+  --accent: #2563eb;
+  --border: #d8dde5;
+  --user-bg: #e8f0fe;
+  --assistant-bg: #ffffff;
+  --pass: #15803d;
+  --fail: #b45309;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151a;
+    --card: #1c2129;
+    --text: #e8ecf1;
+    --muted: #9aa3ad;
+    --border: #2d3540;
+    --user-bg: #1e2a3d;
+    --assistant-bg: #1c2129;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.health {
+  margin: 0 1.5rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.9rem;
+}
+
+.health.ok {
+  border-color: #86efac;
+}
+
+.health.warn {
+  border-color: #fcd34d;
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 320px);
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 200px;
+}
+
+.msg {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.msg.user {
+  background: var(--user-bg);
+}
+
+.msg.assistant {
+  background: var(--assistant-bg);
+}
+
+.msg .role {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.panel h2,
+.panel .subhead {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.citations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.citations li {
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.citations li:last-child {
+  border-bottom: none;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.meta-grid dt {
+  color: var(--muted);
+}
+
+.meta-grid dd {
+  margin: 0;
+}
+
+.grade-pass {
+  color: var(--pass);
+  font-weight: 600;
+}
+
+.grade-fail {
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.trace-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
+.trace-list li {
+  margin-bottom: 0.35rem;
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.25rem;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+#query-input {
+  flex: 1 1 320px;
+  resize: vertical;
+  min-height: 3.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--card);
+  color: var(--text);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+#ask-btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#ask-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.loading {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.hidden {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.error-banner {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}

@@ -106,3 +106,13 @@
 - **决策**：Grade/rewrite/generate 共用 `src/generate/llm.py` 薄 HTTP 客户端（stdlib `urllib`，`/chat/completions`）。API key 优先 `DEEPSEEK_API_KEY`，回退 `OPENAI_API_KEY`；`OPENAI_BASE_URL` 默认示例为 DeepSeek `https://api.deepseek.com/v1`；模型默认 `deepseek-chat`（`configs/default.yaml` `llm` 段可覆盖）。`AGENT_GENERATOR=openai` 表示「OpenAI 兼容 LLM」而非厂商锁定。系统提示词外置至 `prompts/*.txt`。无 key 或请求失败 → stub 回退，并在 trace 中记录 `llm_fallback`。
 - **背景**：M2 已有最小 LLM 钩子；M3 对齐 RepoAgent  spirit（兼容端点 + 环境变量），不引入 model-config JSON / pydantic v3 配置体系。
 - **后果**：`data/eval/questions.json` 增加弱相关 draft 题；`--exercise-rewrite` / `AGENT_STUB_STRICT_GRADE` 可在无 API 时强制走 rewrite 烟测；LLM 全环 smoke 需用户注入 key。
+
+---
+
+## D-012 — M4 本地 Web 问答（stdlib HTTP）
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：提供单页浏览器 UI：`http.server.ThreadingHTTPServer` 仅监听 `127.0.0.1`；HTML/CSS/JS 置于 `src/web/static/`；HTTP 层与 `src/web/service.py` 分离，问答调用既有 `run_agentic_query`。首页注入随机会话 token（meta），`/api/*` 校验 `X-Session-Token`。入口 `scripts/run_web.py` / `python -m src.web`；可选无依赖 `.env` 加载（不覆盖已设环境变量）。
+- **背景**：对齐 RepoAgent「本地 stdlib 服务 + 静态聊天页」思路，但不引入多会话 / 仓池复杂度，也不使用 React SPA。
+- **后果**：无新增 npm 依赖；云端 CI 以 `compileall` + API 烟测（无索引时 `/api/ask` 503）为主；完整 UI 验证依赖本地 `build_index`。
