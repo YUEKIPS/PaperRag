@@ -58,6 +58,19 @@
     });
   }
 
+  function showToast(message, { variant = "error" } = {}) {
+    const toast = document.createElement("div");
+    toast.className = `app-toast app-toast--${variant}`;
+    toast.setAttribute("role", "alert");
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("visible"));
+    setTimeout(() => {
+      toast.classList.remove("visible");
+      setTimeout(() => toast.remove(), 280);
+    }, 4200);
+  }
+
   function loadTheme() {
     const saved = localStorage.getItem("paper-rag-theme") || "ink";
     document.documentElement.setAttribute("data-theme", saved);
@@ -167,6 +180,7 @@
     `;
     document.body.appendChild(menu);
     menu.addEventListener("click", (e) => {
+      e.stopPropagation();
       const btn = e.target.closest("button[data-action]");
       if (!btn || !contextMenuSessionId) return;
       const action = btn.dataset.action;
@@ -241,31 +255,48 @@
     await loadSessionList();
   }
 
+  async function navigateAfterCurrentSessionRemoved() {
+    currentSessionId = null;
+    sessionDetail = null;
+    const data = await api("/api/sessions");
+    const sessions = data.sessions || [];
+    renderSessionList(sessions);
+    if (sessions.length) {
+      await switchSession(sessions[0].id);
+      return;
+    }
+    els.mainTitle.textContent = "新对话";
+    renderMessages([]);
+    await createNewSession();
+  }
+
   async function archiveSession(id) {
-    await api(`/api/sessions/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ archived: true }),
-    });
-    if (id === currentSessionId) {
-      currentSessionId = null;
-      sessionDetail = null;
-      await loadSessionList();
-      await createNewSession();
-    } else {
-      await loadSessionList();
+    try {
+      await api(`/api/sessions/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ archived: true }),
+      });
+      if (id === currentSessionId) {
+        await navigateAfterCurrentSessionRemoved();
+      } else {
+        await loadSessionList();
+      }
+    } catch (e) {
+      showToast(e.message || "归档失败");
     }
   }
 
   async function deleteSession(id) {
     if (!confirm("删除此对话？")) return;
-    await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (id === currentSessionId) {
-      currentSessionId = null;
-      sessionDetail = null;
-      await loadSessionList();
-      await createNewSession();
-    } else {
-      await loadSessionList();
+    try {
+      await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (id === currentSessionId) {
+        await navigateAfterCurrentSessionRemoved();
+      } else {
+        await loadSessionList();
+      }
+    } catch (e) {
+      showToast(e.message || "删除失败");
     }
   }
 

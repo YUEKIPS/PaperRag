@@ -126,3 +126,13 @@
 - **决策**：侧栏会话项支持 `contextmenu`（重命名 / 归档 / 删除），复用既有 PATCH/DELETE API；顶栏归档/删除保留。助手正文用 vendored `marked`（`src/web/static/vendor/marked.umd.js`）经 `markdown.js`  lexer → 安全 DOM（禁 raw HTML / 非 http(s) 链接）；历史加载与打字揭示完成后渲染 `.markdown-body`。`prompts/generate_system.txt` 要求 LLM 输出简洁 GFM。
 - **背景**：对齐 RepoAgent 本地 UI 心智（library 右键、markdown-body），仍保持 localhost-only 与无 npm 构建链。
 - **后果**：静态资源多 `markdown.js` + vendor；不改变 `src/web/security.py` 或 SSE 范围。
+
+---
+
+## D-014 — 回答语言跟随用户 + 会话删除导航
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：`prompts/generate_system.txt` 要求生成语言与用户问题一致；`rewrite_system.txt` 仅补充「保留原问语言、不擅自翻译」。Web UI 删除/归档当前会话后：刷新列表 → 若有其它会话则切换至首个剩余会话 → **仅**在列表为空时 `POST` 新会话；DELETE/PATCH 失败用 toast 提示。
+- **背景**：中文 UI 下英文固定回答体验差；删除当前会话立即新建导致「删不掉」观感。
+- **后果**：`app.js` 增 `navigateAfterCurrentSessionRemoved` 与 `showToast`；grade 提示词不变（JSON 判定与语言无关）。
