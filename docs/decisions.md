@@ -116,3 +116,13 @@
 - **决策**：在 `src/web/` 提供 **ThreadingHTTPServer + 静态 HTML/CSS/JS** 聊天 UI；仅绑定 `127.0.0.1`；`/api/*` 需 Bearer session token（启动时生成并注入页面）。会话 JSON 持久化于 `data/web/sessions/`（gitignore）。问答仍调用 `run_agentic_query`，不做 SSE 流式（客户端分阶段动效 + 打字式揭示）。
 - **背景**：对齐 RepoAgent 本地 UI 心智（侧栏会话、主题、详情 inspector），范围限定论文 Q&A。
 - **后果**：`scripts/serve_web.py`；README 增 Web 小节；不引入 React/Vite。
+
+---
+
+## D-013 — Web UI：会话右键菜单 + Markdown 回答
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：侧栏会话项支持 `contextmenu`（重命名 / 归档 / 删除），复用既有 PATCH/DELETE API；顶栏归档/删除保留。助手正文用 vendored `marked`（`src/web/static/vendor/marked.umd.js`）经 `markdown.js`  lexer → 安全 DOM（禁 raw HTML / 非 http(s) 链接）；历史加载与打字揭示完成后渲染 `.markdown-body`。`prompts/generate_system.txt` 要求 LLM 输出简洁 GFM。
+- **背景**：对齐 RepoAgent 本地 UI 心智（library 右键、markdown-body），仍保持 localhost-only 与无 npm 构建链。
+- **后果**：静态资源多 `markdown.js` + vendor；不改变 `src/web/security.py` 或 SSE 范围。

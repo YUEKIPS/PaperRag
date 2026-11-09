@@ -37,6 +37,8 @@
   let asking = false;
   let progressTimer = null;
   let progressIndex = 0;
+  let sessionContextMenu = null;
+  let contextMenuSessionId = null;
 
   function api(path, options = {}) {
     const headers = {
@@ -99,6 +101,7 @@
       btn.innerHTML = `<span class="session-item-title">${escapeHtml(s.title)}</span>
         <span class="session-item-meta">${s.turn_count || 0} 轮</span>`;
       btn.addEventListener("click", () => switchSession(s.id));
+      btn.addEventListener("contextmenu", (e) => showSessionContextMenu(e, s));
       els.sessionList.appendChild(btn);
     });
   }
@@ -138,6 +141,134 @@
       .replace(/"/g, "&quot;");
   }
 
+  function renderAnswerMarkdown(bubble, text) {
+    bubble.innerHTML = "";
+    const body = document.createElement("div");
+    body.className = "markdown-body";
+    bubble.appendChild(body);
+    if (window.PaperRagMarkdown) {
+      window.PaperRagMarkdown.render(text, body);
+    } else {
+      body.textContent = text || "(无回答)";
+    }
+  }
+
+  function ensureSessionContextMenu() {
+    if (sessionContextMenu) return sessionContextMenu;
+    const menu = document.createElement("div");
+    menu.id = "session-context-menu";
+    menu.className = "session-context-menu";
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
+    menu.innerHTML = `
+      <button type="button" data-action="rename" role="menuitem">重命名</button>
+      <button type="button" data-action="archive" role="menuitem">归档</button>
+      <button type="button" data-action="delete" class="danger" role="menuitem">删除</button>
+    `;
+    document.body.appendChild(menu);
+    menu.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn || !contextMenuSessionId) return;
+      const action = btn.dataset.action;
+      const id = contextMenuSessionId;
+      const title = btn.dataset.sessionTitle || "";
+      hideSessionContextMenu();
+      if (action === "rename") renameSession(id, title);
+      else if (action === "archive") archiveSession(id);
+      else if (action === "delete") deleteSession(id);
+    });
+    document.addEventListener("click", (e) => {
+      if (!sessionContextMenu || sessionContextMenu.hidden) return;
+      if (!sessionContextMenu.contains(e.target)) hideSessionContextMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hideSessionContextMenu();
+    });
+    document.addEventListener(
+      "scroll",
+      () => {
+        if (!sessionContextMenu?.hidden) hideSessionContextMenu();
+      },
+      true
+    );
+    sessionContextMenu = menu;
+    return menu;
+  }
+
+  function hideSessionContextMenu() {
+    if (sessionContextMenu) sessionContextMenu.hidden = true;
+    contextMenuSessionId = null;
+  }
+
+  function showSessionContextMenu(e, session) {
+    e.preventDefault();
+    e.stopPropagation();
+    const menu = ensureSessionContextMenu();
+    contextMenuSessionId = session.id;
+    menu.querySelectorAll("button[data-action]").forEach((btn) => {
+      btn.dataset.sessionTitle = session.title || "";
+    });
+    menu.hidden = false;
+    const pad = 8;
+    let x = e.clientX;
+    let y = e.clientY;
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - pad) {
+      x = Math.max(pad, window.innerWidth - rect.width - pad);
+      menu.style.left = `${x}px`;
+    }
+    if (rect.bottom > window.innerHeight - pad) {
+      y = Math.max(pad, window.innerHeight - rect.height - pad);
+      menu.style.top = `${y}px`;
+    }
+  }
+
+  async function renameSession(id, currentTitle) {
+    const next = prompt("重命名对话", currentTitle || "新对话");
+    if (next === null) return;
+    const title = next.trim();
+    if (!title || title === currentTitle) return;
+    await api(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    });
+    if (id === currentSessionId) {
+      els.mainTitle.textContent = title;
+      if (sessionDetail) sessionDetail.title = title;
+    }
+    await loadSessionList();
+  }
+
+  async function archiveSession(id) {
+    await api(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+    if (id === currentSessionId) {
+      currentSessionId = null;
+      sessionDetail = null;
+      await loadSessionList();
+      await createNewSession();
+    } else {
+      await loadSessionList();
+    }
+  }
+
+  async function deleteSession(id) {
+    if (!confirm("删除此对话？")) return;
+    await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (id === currentSessionId) {
+      currentSessionId = null;
+      sessionDetail = null;
+      await loadSessionList();
+      await createNewSession();
+    } else {
+      await loadSessionList();
+    }
+  }
+
   function renderMessages(turns) {
     els.messages.innerHTML = "";
     if (!turns.length) {
@@ -171,9 +302,12 @@
 
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
-    const answerSpan = document.createElement("span");
-    answerSpan.className = "answer-typed";
-    bubble.appendChild(answerSpan);
+    let answerSpan = null;
+    if (animate) {
+      answerSpan = document.createElement("span");
+      answerSpan.className = "answer-typed";
+      bubble.appendChild(answerSpan);
+    }
     assist.appendChild(bubble);
 
     const actions = document.createElement("div");
@@ -199,12 +333,14 @@
     els.messages.appendChild(assist);
     assist.querySelector(".btn-detail").addEventListener("click", () => openInspector(turn));
 
-    if (animate) {
-      revealAnswer(answerSpan, result.answer || "", () => {
+    const answerText = result.answer || "";
+    if (animate && answerSpan) {
+      revealAnswer(answerSpan, answerText, () => {
+        renderAnswerMarkdown(bubble, answerText);
         requestAnimationFrame(() => chips.classList.add("revealed"));
       });
     } else {
-      answerSpan.textContent = result.answer || "";
+      renderAnswerMarkdown(bubble, answerText);
       chips.classList.add("revealed");
     }
 
@@ -410,23 +546,12 @@
   els.btnNew.addEventListener("click", () => createNewSession());
   els.btnArchive.addEventListener("click", async () => {
     if (!currentSessionId) return;
-    await api(`/api/sessions/${encodeURIComponent(currentSessionId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ archived: true }),
-    });
-    currentSessionId = null;
-    sessionDetail = null;
-    await loadSessionList();
-    await createNewSession();
+    await archiveSession(currentSessionId);
   });
 
   els.btnDelete.addEventListener("click", async () => {
     if (!currentSessionId) return;
-    if (!confirm("删除此对话？")) return;
-    await api(`/api/sessions/${encodeURIComponent(currentSessionId)}`, { method: "DELETE" });
-    currentSessionId = null;
-    await loadSessionList();
-    await createNewSession();
+    await deleteSession(currentSessionId);
   });
 
   els.themeSelect.addEventListener("change", () => setTheme(els.themeSelect.value));
