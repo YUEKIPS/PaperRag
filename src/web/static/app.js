@@ -1,0 +1,454 @@
+(function () {
+  const TOKEN =
+    document.querySelector('meta[name="paper-rag-token"]')?.getAttribute("content") || "";
+
+  const PIPELINE_STEPS = [
+    { key: "decide", label: "路由" },
+    { key: "retrieve", label: "检索" },
+    { key: "grade", label: "评分" },
+    { key: "rewrite", label: "改写" },
+    { key: "generate", label: "生成" },
+  ];
+
+  const els = {
+    sessionList: document.getElementById("session-list"),
+    messages: document.getElementById("messages"),
+    mainTitle: document.getElementById("main-title"),
+    mainPane: document.getElementById("main-pane"),
+    composerForm: document.getElementById("composer-form"),
+    queryInput: document.getElementById("query-input"),
+    btnSend: document.getElementById("btn-send"),
+    btnNew: document.getElementById("btn-new-session"),
+    btnArchive: document.getElementById("btn-archive"),
+    btnDelete: document.getElementById("btn-delete"),
+    progressDock: document.getElementById("progress-dock"),
+    progressLabel: document.getElementById("progress-label"),
+    progressSteps: document.getElementById("progress-steps"),
+    healthDot: document.getElementById("health-dot"),
+    healthText: document.getElementById("health-text"),
+    themeSelect: document.getElementById("theme-select"),
+    inspector: document.getElementById("inspector"),
+    inspectorBody: document.getElementById("inspector-body"),
+    inspectorClose: document.getElementById("inspector-close"),
+  };
+
+  let currentSessionId = null;
+  let sessionDetail = null;
+  let asking = false;
+  let progressTimer = null;
+  let progressIndex = 0;
+
+  function api(path, options = {}) {
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+      ...(options.headers || {}),
+    };
+    return fetch(path, { ...options, headers }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = new Error(data.message || data.error || res.statusText);
+        err.status = res.status;
+        err.payload = data;
+        throw err;
+      }
+      return data;
+    });
+  }
+
+  function loadTheme() {
+    const saved = localStorage.getItem("paper-rag-theme") || "ink";
+    document.documentElement.setAttribute("data-theme", saved);
+    els.themeSelect.value = saved;
+  }
+
+  function setTheme(name) {
+    document.documentElement.setAttribute("data-theme", name);
+    localStorage.setItem("paper-rag-theme", name);
+  }
+
+  async function refreshHealth() {
+    try {
+      const h = await api("/api/health");
+      const dot = els.healthDot;
+      dot.classList.remove("ok", "warn");
+      if (h.index_ok) {
+        dot.classList.add("ok");
+        els.healthText.textContent = `索引就绪 · ${h.generator_mode}${h.api_key_set ? "" : " (无 API key)"}`;
+      } else {
+        dot.classList.add("warn");
+        els.healthText.textContent = "索引缺失 · 先运行 build_index.py";
+      }
+    } catch {
+      els.healthDot.classList.add("warn");
+      els.healthText.textContent = "无法连接服务";
+    }
+  }
+
+  function renderSessionList(sessions) {
+    els.sessionList.innerHTML = "";
+    if (!sessions.length) {
+      els.sessionList.innerHTML = '<p class="session-item-meta" style="padding:8px">暂无对话</p>';
+      return;
+    }
+    sessions.forEach((s) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "session-item" + (s.id === currentSessionId ? " active" : "");
+      btn.dataset.id = s.id;
+      btn.innerHTML = `<span class="session-item-title">${escapeHtml(s.title)}</span>
+        <span class="session-item-meta">${s.turn_count || 0} 轮</span>`;
+      btn.addEventListener("click", () => switchSession(s.id));
+      els.sessionList.appendChild(btn);
+    });
+  }
+
+  async function loadSessionList() {
+    const data = await api("/api/sessions");
+    renderSessionList(data.sessions || []);
+  }
+
+  async function switchSession(id) {
+    if (id === currentSessionId && sessionDetail) return;
+    els.mainPane.classList.add("switching");
+    await new Promise((r) => setTimeout(r, 120));
+    currentSessionId = id;
+    sessionDetail = await api(`/api/sessions/${encodeURIComponent(id)}`);
+    els.mainTitle.textContent = sessionDetail.title || "新对话";
+    renderMessages(sessionDetail.turns || []);
+    await loadSessionList();
+    els.mainPane.classList.remove("switching");
+  }
+
+  async function createNewSession() {
+    const session = await api("/api/sessions", { method: "POST", body: "{}" });
+    currentSessionId = session.id;
+    sessionDetail = session;
+    els.mainTitle.textContent = session.title;
+    renderMessages([]);
+    await loadSessionList();
+    els.queryInput.focus();
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderMessages(turns) {
+    els.messages.innerHTML = "";
+    if (!turns.length) {
+      els.messages.innerHTML =
+        '<p class="empty-state">输入问题开始检索论文库。<br>回答会附带页码级引用与 Agent 轨迹。</p>';
+      return;
+    }
+    turns.forEach((turn, idx) => {
+      appendTurnToDom(turn, { animate: false, skipUser: false });
+    });
+  }
+
+  function appendUserBubble(text, { pending = false } = {}) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg msg-user" + (pending ? " pending" : "");
+    wrap.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
+    els.messages.appendChild(wrap);
+    els.messages.scrollTop = els.messages.scrollHeight;
+    return wrap;
+  }
+
+  function appendTurnToDom(turn, opts = {}) {
+    const { animate = true, skipUser = false } = opts;
+    const result = turn.result || {};
+    if (!skipUser) {
+      appendUserBubble(turn.query, { pending: false });
+    }
+    const assist = document.createElement("div");
+    assist.className = "msg msg-assistant";
+    assist.dataset.turnId = turn.id;
+
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble";
+    const answerSpan = document.createElement("span");
+    answerSpan.className = "answer-typed";
+    bubble.appendChild(answerSpan);
+    assist.appendChild(bubble);
+
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+    const gradeOk = result.grade_passed;
+    actions.innerHTML = `
+      <span class="msg-meta">generator: ${escapeHtml(result.generator || "stub")} · ${result.num_chunks || 0} chunks</span>
+      <button type="button" class="btn btn-ghost btn-sm btn-detail">详情</button>
+    `;
+    assist.appendChild(actions);
+
+    const chips = document.createElement("div");
+    chips.className = "citation-chips";
+    (result.citations || []).forEach((c, i) => {
+      const chip = document.createElement("span");
+      chip.className = "citation-chip";
+      chip.style.animationDelay = `${i * 0.08}s`;
+      chip.textContent = `${c.paper_id || "?"} p.${c.page ?? "?"} · ${c.chunk_id || ""}`;
+      chips.appendChild(chip);
+    });
+    assist.appendChild(chips);
+
+    els.messages.appendChild(assist);
+    assist.querySelector(".btn-detail").addEventListener("click", () => openInspector(turn));
+
+    if (animate) {
+      revealAnswer(answerSpan, result.answer || "", () => {
+        requestAnimationFrame(() => chips.classList.add("revealed"));
+      });
+    } else {
+      answerSpan.textContent = result.answer || "";
+      chips.classList.add("revealed");
+    }
+
+    els.messages.scrollTop = els.messages.scrollHeight;
+    return assist;
+  }
+
+  function revealAnswer(el, text, onDone) {
+    const chars = text.length;
+    if (chars === 0) {
+      el.textContent = "(无回答)";
+      if (onDone) onDone();
+      return;
+    }
+    const ms = Math.min(2400, Math.max(400, chars * 12));
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / ms);
+      const n = Math.floor(t * chars);
+      el.textContent = text.slice(0, n);
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        el.textContent = text;
+        if (onDone) onDone();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function startProgress() {
+    els.progressDock.hidden = false;
+    els.composerForm.classList.add("busy");
+    els.queryInput.disabled = true;
+    els.btnSend.disabled = true;
+    els.progressSteps.innerHTML = "";
+    PIPELINE_STEPS.forEach((s) => {
+      const li = document.createElement("li");
+      li.className = "progress-step";
+      li.dataset.key = s.key;
+      li.textContent = s.label;
+      els.progressSteps.appendChild(li);
+    });
+    progressIndex = 0;
+    setProgressStep(0);
+    progressTimer = setInterval(() => {
+      if (progressIndex < PIPELINE_STEPS.length - 1) {
+        progressIndex += 1;
+        setProgressStep(progressIndex);
+      }
+    }, 900);
+  }
+
+  function setProgressStep(idx) {
+    const steps = els.progressSteps.querySelectorAll(".progress-step");
+    const labels = [
+      "解析意图…",
+      "混合检索与重排…",
+      "评估检索质量…",
+      "必要时改写查询…",
+      "生成带引用回答…",
+    ];
+    els.progressLabel.textContent = labels[Math.min(idx, labels.length - 1)];
+    steps.forEach((el, i) => {
+      el.classList.remove("active", "done");
+      if (i < idx) el.classList.add("done");
+      else if (i === idx) el.classList.add("active");
+    });
+  }
+
+  function stopProgress(success) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+    if (success) {
+      els.progressSteps.querySelectorAll(".progress-step").forEach((el) => {
+        el.classList.remove("active");
+        el.classList.add("done");
+      });
+      els.progressLabel.textContent = "完成";
+    }
+    setTimeout(() => {
+      els.progressDock.hidden = true;
+    }, success ? 400 : 100);
+    els.composerForm.classList.remove("busy");
+    els.queryInput.disabled = false;
+    els.btnSend.disabled = false;
+  }
+
+  async function submitQuery(query) {
+    if (asking || !query.trim()) return;
+    asking = true;
+    if (!currentSessionId) {
+      await createNewSession();
+    }
+
+    const pending = appendUserBubble(query, { pending: true });
+    els.queryInput.value = "";
+    startProgress();
+
+    try {
+      const data = await api("/api/ask", {
+        method: "POST",
+        body: JSON.stringify({ query, session_id: currentSessionId }),
+      });
+      pending.remove();
+      sessionDetail = data.session;
+      if (data.session?.title) els.mainTitle.textContent = data.session.title;
+      const turn = data.turn;
+      if (turn) {
+        stagedRevealFromTrace(turn);
+        const empty = els.messages.querySelector(".empty-state");
+        if (empty) empty.remove();
+        appendUserBubble(turn.query, { pending: false });
+        appendTurnToDom(turn, { animate: true, skipUser: true });
+      }
+      stopProgress(true);
+      await loadSessionList();
+    } catch (e) {
+      pending.classList.remove("pending");
+      stopProgress(false);
+      const err = document.createElement("div");
+      err.className = "msg msg-assistant";
+      err.innerHTML = `<div class="msg-bubble" style="border-color:var(--danger)">错误: ${escapeHtml(e.message || String(e))}</div>`;
+      els.messages.appendChild(err);
+    } finally {
+      asking = false;
+      els.queryInput.focus();
+    }
+  }
+
+  function stagedRevealFromTrace(turn) {
+    const trace = (turn.result && turn.result.trace) || [];
+    const keys = new Set(trace.map((t) => t.event));
+    let idx = 0;
+    PIPELINE_STEPS.forEach((s, i) => {
+      if (keys.has(s.key) || (s.key === "generate" && turn.result?.answer)) {
+        idx = i;
+      }
+    });
+    progressIndex = idx;
+    setProgressStep(idx);
+  }
+
+  function openInspector(turn) {
+    const r = turn.result || {};
+    const gradeClass = r.grade_passed ? "pass" : "fail";
+    const trace = r.trace || [];
+
+    let timelineHtml = "";
+    trace.forEach((item, i) => {
+      const delay = i * 0.06;
+      const detail = { ...item };
+      delete detail.event;
+      timelineHtml += `<li style="animation-delay:${delay}s">
+        <span class="timeline-event">${escapeHtml(item.event || "?")}</span>
+        <pre style="margin:4px 0 0;font-size:0.75rem;white-space:pre-wrap;color:var(--text-muted)">${escapeHtml(JSON.stringify(detail, null, 0))}</pre>
+      </li>`;
+    });
+
+    let cites = "";
+    (r.citations || []).forEach((c) => {
+      cites += `<li>${escapeHtml(c.paper_id)} · page ${c.page} · ${escapeHtml(c.chunk_id || "")}</li>`;
+    });
+
+    els.inspectorBody.innerHTML = `
+      <div class="inspector-section">
+        <h3>查询</h3>
+        <p>${escapeHtml(turn.query)}</p>
+        <p style="color:var(--text-muted);font-size:0.82rem">Working: ${escapeHtml(r.working_query || "")}</p>
+      </div>
+      <div class="inspector-section">
+        <h3>Grade</h3>
+        <span class="grade-badge ${gradeClass}">${r.grade_passed ? "通过" : "未通过"}</span>
+        <span style="margin-left:8px">${escapeHtml(r.grade_reason || "")}</span>
+        <p style="margin:8px 0 0;font-size:0.82rem">Rewrite 迭代: ${r.iterations ?? 0}</p>
+      </div>
+      <div class="inspector-section">
+        <h3>Trace</h3>
+        <ul class="timeline">${timelineHtml || "<li>无轨迹</li>"}</ul>
+      </div>
+      <div class="inspector-section">
+        <h3>Citations</h3>
+        <ul class="citations-list">${cites || "<li>无引用</li>"}</ul>
+      </div>
+    `;
+    if (typeof els.inspector.showModal === "function") {
+      els.inspector.showModal();
+    }
+  }
+
+  els.composerForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitQuery(els.queryInput.value);
+  });
+
+  els.queryInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitQuery(els.queryInput.value);
+    }
+  });
+
+  els.btnNew.addEventListener("click", () => createNewSession());
+  els.btnArchive.addEventListener("click", async () => {
+    if (!currentSessionId) return;
+    await api(`/api/sessions/${encodeURIComponent(currentSessionId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+    currentSessionId = null;
+    sessionDetail = null;
+    await loadSessionList();
+    await createNewSession();
+  });
+
+  els.btnDelete.addEventListener("click", async () => {
+    if (!currentSessionId) return;
+    if (!confirm("删除此对话？")) return;
+    await api(`/api/sessions/${encodeURIComponent(currentSessionId)}`, { method: "DELETE" });
+    currentSessionId = null;
+    await loadSessionList();
+    await createNewSession();
+  });
+
+  els.themeSelect.addEventListener("change", () => setTheme(els.themeSelect.value));
+  els.inspectorClose.addEventListener("click", () => els.inspector.close());
+  els.inspector.addEventListener("click", (e) => {
+    if (e.target === els.inspector) els.inspector.close();
+  });
+
+  async function init() {
+    loadTheme();
+    refreshHealth();
+    setInterval(refreshHealth, 45000);
+    await loadSessionList();
+    const data = await api("/api/sessions");
+    if (data.sessions && data.sessions.length) {
+      await switchSession(data.sessions[0].id);
+    } else {
+      await createNewSession();
+    }
+  }
+
+  init().catch((e) => {
+    els.healthText.textContent = String(e.message || e);
+  });
+})();

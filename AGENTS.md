@@ -46,6 +46,7 @@
 | `scripts/build_index.py` | 索引（当前为 JSONL 脚手架） |
 | `scripts/run_baseline.py` | 非 Agentic 基线烟测 |
 | `scripts/run_agentic.py` | LangGraph agentic smoke |
+| `scripts/serve_web.py` | 本地 Web UI（127.0.0.1） |
 | `scripts/eval_all.py` | 批量定性 eval → `data/eval/runs/` |
 
 ## 配置
