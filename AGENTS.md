@@ -46,6 +46,7 @@
 | `scripts/build_index.py` | 索引（当前为 JSONL 脚手架） |
 | `scripts/run_baseline.py` | 非 Agentic 基线烟测 |
 | `scripts/run_agentic.py` | LangGraph agentic smoke |
+| `scripts/run_web.py` | 本地 Web 问答 UI（127.0.0.1） |
 | `scripts/eval_all.py` | 批量定性 eval → `data/eval/runs/` |
 
 ## 配置
@@ -59,6 +60,7 @@
 - **M1**：解析 / 分块质量、嵌入索引、真实 baseline 生成（LLM 可选）、引用格式
 - **M2**：混合检索 + rerank + LangGraph Agentic 环 — **已完成**
 - **M3**：LLM grade/rewrite（DeepSeek 兼容 HTTP）— **已完成**（全 LLM smoke 需 API key）
+- **M4**：本地 Web 问答 UI（stdlib HTTP + 静态页）— **已完成**（端到端需本地索引）
 
 LLM 环境变量：`AGENT_GENERATOR=openai`、`DEEPSEEK_API_KEY`（或 `OPENAI_API_KEY`）、可选 `OPENAI_BASE_URL` / `OPENAI_MODEL`（见 `configs/default.yaml` `llm`）。
 

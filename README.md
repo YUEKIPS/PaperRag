@@ -4,7 +4,7 @@
 
 与 [RepoAgent](https://github.com/)（代码仓 Agent）互补：RepoAgent 管代码仓库；本项目管 **非代码论文知识库**。
 
-> **当前状态（2026-11-09）**：**M3** — M2 之上 **LLM-ready grade/rewrite/generate**（OpenAI-compatible HTTP，默认 DeepSeek 端点示例）+ 外置 `prompts/` + stub 回退。无 Recall@k aggregate；decide 路由学习与 ColBERT 级 rerank **未** 做。
+> **当前状态（2026-11-09）**：**M4** — 在 M3 LLM 钩子之上增加 **本地 Web 问答 UI**（`run_web.py` / `127.0.0.1`）。无 Recall@k aggregate；decide 路由学习与 ColBERT 级 rerank **未** 做。
 
 ## 功能模块（目标）
 
@@ -18,6 +18,7 @@
 | `agent` | LangGraph：decide → retrieve → grade → rewrite → generate |
 | `generate` | 带引用的回答生成 |
 | `eval` | 离线评测 |
+| `web` | 本地 stdlib HTTP + 静态页问答 UI |
 
 ## 环境要求
 
@@ -79,6 +80,23 @@ python3 scripts/run_agentic.py --query "How do agentic RAG systems differ from s
 # 5 题定性 eval
 python3 scripts/eval_all.py --limit 5
 ```
+
+### 本地 Web 问答 UI（M4）
+
+先完成 `build_index`，再在仓库根目录启动（仅绑定 `127.0.0.1`）：
+
+```bash
+# 可选：仓库根目录 .env 会在启动时加载（不覆盖已有环境变量）
+export AGENT_GENERATOR=openai   # 可选；无 key 时仍为 stub
+export DEEPSEEK_API_KEY=...     # 或 OPENAI_API_KEY
+
+python3 scripts/run_web.py
+# 等价：python3 -m src.web
+```
+
+浏览器打开终端打印的地址（默认 `http://127.0.0.1:8765/`）。页面内含会话 token；`/api/*` 请求需携带响应头 `X-Session-Token`（前端已自动设置）。
+
+云端快照通常无 `data/index/`；本地需先跑 `download_pdfs` → `ingest` → `build_index` 后再提问。
 
 详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
 Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)、[docs/reports/smoke_m3_llm_agentic.md](docs/reports/smoke_m3_llm_agentic.md)。

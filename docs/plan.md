@@ -37,7 +37,14 @@
 - [x] `--exercise-rewrite`、弱相关 eval 题 q006–q007；报告 `docs/reports/smoke_m3_llm_agentic.md`
 - [ ] **未在本环境验证**：有 API key 时的全 LLM 环与 rewrite 次数（依赖用户注入 key）
 
-## 本轮之后建议的下一步（M4+）
+### M4 — 本地 Web 问答 UI ✅（本轮交付）
+
+- [x] `src/web/`：`ThreadingHTTPServer` 仅 `127.0.0.1`、会话 token + `/api/health` `/api/ask`
+- [x] 静态页：回答、引用（paper_id / page / chunk_id）、grade / rewrite / trace 折叠面板
+- [x] `scripts/run_web.py`、`python -m src.web`；可选根目录 `.env` 加载
+- [ ] **未在本环境验证**：有索引时的浏览器端到端（云端快照无 `data/index/`）；本地 `build_index` 后手动打开 UI
+
+## 本轮之后建议的下一步（M5+）
 
 1. 公式/多栏 PDF spot check；必要时调 chunk 策略
 2. 在 `eval_all` 上追加人工标注 gold chunk，再讨论是否做 Recall@k（仍不编造数字）

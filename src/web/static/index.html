@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="session-token" content="__SESSION_TOKEN__" />
+    <title>Agentic Paper RAG — 本地问答</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>Agentic Paper RAG</h1>
+      <p class="subtitle">本地论文库问答（LangGraph Agentic 管线）</p>
+    </header>
+
+    <section id="health" class="health" aria-live="polite">正在检查服务状态…</section>
+
+    <main class="layout">
+      <section id="messages" class="messages" aria-label="对话"></section>
+
+      <aside class="side">
+        <section class="panel">
+          <h2>引用</h2>
+          <ul id="citations" class="citations"></ul>
+          <p id="citations-empty" class="muted">提问后将显示 paper_id、页码与 chunk。</p>
+        </section>
+
+        <details class="panel trace-panel" id="trace-panel">
+          <summary>Grade / Rewrite 轨迹</summary>
+          <dl id="grade-meta" class="meta-grid"></dl>
+          <h3 class="subhead">Trace 事件</h3>
+          <ol id="trace-list" class="trace-list"></ol>
+        </details>
+      </aside>
+    </main>
+
+    <footer class="composer">
+      <label for="query-input" class="sr-only">问题</label>
+      <textarea
+        id="query-input"
+        rows="3"
+        placeholder="输入关于 LLM / Agent / RAG 论文的问题…"
+      ></textarea>
+      <div class="composer-actions">
+        <button type="button" id="ask-btn">提问</button>
+        <span id="loading" class="loading hidden" aria-hidden="true">处理中…</span>
+      </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
