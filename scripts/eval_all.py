@@ -15,7 +15,13 @@ from src.eval.harness import run_agentic_eval, write_smoke_report  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run draft eval set through agentic pipeline.")
+    parser = argparse.ArgumentParser(
+        description="Run draft eval set through agentic pipeline.",
+        epilog=(
+            "M3: questions q006–q007 are weak-relevance drafts to exercise rewrite on stub path. "
+            "Use --exercise-rewrite for stricter stub grade. LLM path: AGENT_GENERATOR=openai + API key."
+        ),
+    )
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "configs" / "default.yaml")
     parser.add_argument("--limit", type=int, default=5, help="Max questions from eval JSON")
     parser.add_argument(
@@ -24,9 +30,14 @@ def main() -> int:
         help="Disable rerank for this eval run",
     )
     parser.add_argument(
+        "--exercise-rewrite",
+        action="store_true",
+        help="Stricter stub grade for all questions (rewrite-loop smoke)",
+    )
+    parser.add_argument(
         "--report",
         type=Path,
-        default=REPO_ROOT / "docs" / "reports" / "smoke_m2_agentic.md",
+        default=REPO_ROOT / "docs" / "reports" / "smoke_m3_llm_agentic.md",
         help="Markdown smoke report path",
     )
     parser.add_argument(
@@ -45,6 +56,7 @@ def main() -> int:
         config_path=args.config,
         limit=args.limit,
         rerank_override=rerank_override,
+        exercise_strict_grade=args.exercise_rewrite,
     )
 
     write_smoke_report(
@@ -53,6 +65,7 @@ def main() -> int:
         runs,
         run_dir=run_dir,
         ablation_note=args.ablation,
+        milestone="M3",
     )
 
     print(f"Wrote artifacts to {run_dir}", file=sys.stderr)

@@ -55,5 +55,13 @@ agent:
   max_grade_rewrite_loops: 2
   max_context_chunks: 5
 
+# OpenAI-compatible chat/completions (defaults target DeepSeek).
+# Override with env: DEEPSEEK_API_KEY or OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL.
+# Set AGENT_GENERATOR=openai (agent grade/rewrite/generate) or BASELINE_GENERATOR=openai (baseline only).
+llm:
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat
+  timeout_seconds: 120
+
 eval:
   output_dir: data/eval/runs

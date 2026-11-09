@@ -13,18 +13,31 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.agent.run import run_agentic_query  # noqa: E402
 from src.config import load_config, resolve_path  # noqa: E402
-from src.generate.llm import generator_mode  # noqa: E402
+from src.generate.llm import generator_mode, llm_endpoint_summary  # noqa: E402
 from src.retriever.pipeline import _rerank_cfg  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agentic RAG (LangGraph) smoke run.")
+    parser = argparse.ArgumentParser(
+        description="Agentic RAG (LangGraph) smoke run.",
+        epilog=(
+            "LLM grade/rewrite/generate: export AGENT_GENERATOR=openai, "
+            "DEEPSEEK_API_KEY (or OPENAI_API_KEY), optional OPENAI_BASE_URL "
+            "(default DeepSeek https://api.deepseek.com/v1) and OPENAI_MODEL "
+            "(default deepseek-chat). Without a key, nodes fall back to stub with trace notes."
+        ),
+    )
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "configs" / "default.yaml")
     parser.add_argument("--query", type=str, required=True, help="User question")
     parser.add_argument(
         "--no-rerank",
         action="store_true",
         help="Disable cross-encoder rerank for this run (ablation)",
+    )
+    parser.add_argument(
+        "--exercise-rewrite",
+        action="store_true",
+        help="Use stricter stub grading so weak queries are more likely to trigger rewrite (no API needed)",
     )
     parser.add_argument(
         "--json",
@@ -45,7 +58,8 @@ def main() -> int:
     rerank_enabled = False if args.no_rerank else rerank_default
 
     print(
-        f"Agent generator: {generator_mode(agent=True)}; rerank: {rerank_enabled}",
+        f"Agent generator: {generator_mode(agent=True)}; {llm_endpoint_summary(config)}; "
+        f"rerank: {rerank_enabled}; exercise_rewrite: {args.exercise_rewrite}",
         file=sys.stderr,
     )
 
@@ -54,6 +68,7 @@ def main() -> int:
         index_dir,
         config,
         rerank_enabled=rerank_enabled,
+        exercise_strict_grade=args.exercise_rewrite,
     )
 
     if args.json:

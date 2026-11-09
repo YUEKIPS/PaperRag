@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from src.agent.run import AgenticResult, run_agentic_query
 from src.config import resolve_eval_runs_dir, resolve_path
+from src.generate.llm import llm_endpoint_summary
 
 
 @dataclass
@@ -19,6 +20,8 @@ class EvalRunMeta:
     rerank_enabled: bool
     num_questions: int
     config_path: str
+    llm_endpoint: str
+    exercise_strict_grade: bool
 
 
 @dataclass
@@ -38,6 +41,7 @@ def run_agentic_eval(
     config_path: Path,
     limit: int | None = None,
     rerank_override: bool | None = None,
+    exercise_strict_grade: bool = False,
 ) -> tuple[Path, list[QuestionRun], EvalRunMeta]:
     from src.generate.llm import generator_mode
     from src.retriever.pipeline import _rerank_cfg
@@ -67,6 +71,8 @@ def run_agentic_eval(
         rerank_enabled=rerank_on,
         num_questions=len(questions),
         config_path=str(config_path),
+        llm_endpoint=llm_endpoint_summary(config),
+        exercise_strict_grade=exercise_strict_grade,
     )
     (run_dir / "meta.json").write_text(
         json.dumps(asdict(meta), indent=2, ensure_ascii=False), encoding="utf-8"
@@ -81,6 +87,7 @@ def run_agentic_eval(
             index_dir,
             config,
             rerank_enabled=rerank_override,
+            exercise_strict_grade=exercise_strict_grade,
         )
         payload = {
             "query": ar.query,
@@ -101,7 +108,14 @@ def run_agentic_eval(
 
     summary = {
         "meta": asdict(meta),
-        "questions": [{"id": r.question_id, "grade_passed": r.result.get("grade_passed")} for r in runs],
+        "questions": [
+            {
+                "id": r.question_id,
+                "grade_passed": r.result.get("grade_passed"),
+                "iterations": r.result.get("iterations"),
+            }
+            for r in runs
+        ],
     }
     (run_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -116,15 +130,31 @@ def write_smoke_report(
     *,
     run_dir: Path,
     ablation_note: str = "",
+    milestone: str = "M3",
 ) -> None:
+    rewrite_counts = [int(r.result.get("iterations") or 0) for r in runs]
+    any_rewrite = any(n > 0 for n in rewrite_counts)
+
     lines = [
-        "# Smoke: M2 Agentic pipeline",
+        f"# Smoke: {milestone} Agentic pipeline (LLM-ready grade/rewrite)",
         "",
         f"- **Run id**: `{meta.run_id}`",
         f"- **Timezone**: {meta.timezone}",
-        f"- **Generator**: `{meta.generator_mode}` (stub default; set `AGENT_GENERATOR=openai` or `BASELINE_GENERATOR=openai` + `OPENAI_API_KEY` for LLM nodes)",
+        f"- **Generator mode**: `{meta.generator_mode}`",
+        f"- **LLM endpoint**: {meta.llm_endpoint}",
+        f"- **Strict stub grade (--exercise-rewrite)**: {meta.exercise_strict_grade}",
         f"- **Rerank**: {'enabled' if meta.rerank_enabled else 'disabled'}",
         f"- **Artifacts**: `{run_dir}` (gitignored)",
+        "",
+        "## LLM env (DeepSeek-compatible default)",
+        "",
+        "```bash",
+        "export AGENT_GENERATOR=openai",
+        "export DEEPSEEK_API_KEY=...",
+        "# optional: OPENAI_API_KEY, OPENAI_BASE_URL=https://api.deepseek.com/v1, OPENAI_MODEL=deepseek-chat",
+        "```",
+        "",
+        "Without a key, grade/rewrite/generate use **stub** paths; trace entries may include `llm_fallback` when mode is openai but the key or request fails.",
         "",
         "## Scope",
         "",
@@ -144,6 +174,7 @@ def write_smoke_report(
                 f"- **Grade**: passed={res.get('grade_passed')} — {res.get('grade_reason')}",
                 f"- **Rewrite iterations**: {res.get('iterations')}",
                 f"- **Chunks used**: {res.get('num_chunks')}",
+                f"- **Generator**: {res.get('generator')}",
                 f"- **Citations**: {len(res.get('citations') or [])}",
                 "",
             ]
@@ -157,8 +188,9 @@ def write_smoke_report(
             "## Observations",
             "",
             "- LangGraph path `decide → retrieve → grade → rewrite → generate` completed for all items.",
-            "- Grade/rewrite use deterministic stubs without API; generation follows baseline stub unless OpenAI env is set.",
-            "- Inspect per-question JSON under the run directory for retrieval trace and citation payloads.",
+            f"- Rewrite loop exercised (iterations > 0 on at least one question): **{any_rewrite}**.",
+            "- Prompts live under `prompts/*.txt`; HTTP client in `src/generate/llm.py`.",
+            "- Inspect per-question JSON under the run directory for `backend`, `llm_fallback`, and trace payloads.",
             "",
         ]
     )

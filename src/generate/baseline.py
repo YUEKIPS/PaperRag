@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
+from src.generate.llm import generator_mode, try_openai_chat
+from src.generate.prompts import load_prompt
 from src.retriever.baseline import RetrievedChunk
 
 
@@ -41,50 +41,26 @@ def _stub_answer(query: str, context: str) -> str:
     )
 
 
-def _openai_chat(query: str, context: str) -> str:
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
+def _use_llm(*, from_agent: bool) -> bool:
+    if from_agent:
+        from src.generate.llm import generator_mode
 
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-
-    system = (
-        "You answer questions about LLM and agent research papers using ONLY the "
-        "provided context. Cite sources as [arxiv_id p.N] matching the context tags. "
-        "If context is insufficient, say so briefly."
-    )
-    user = f"Question: {query}\n\nContext:\n{context}"
-
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0.2,
-    }
-    req = urllib.request.Request(
-        f"{base_url}/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        body = json.loads(resp.read().decode("utf-8"))
-    return str(body["choices"][0]["message"]["content"]).strip()
+        return generator_mode(agent=True) == "openai"
+    return os.environ.get("BASELINE_GENERATOR", "stub").strip().lower() == "openai"
 
 
 def generate_baseline_answer(
     query: str,
     chunks: list[RetrievedChunk],
+    *,
+    config: dict[str, Any] | None = None,
+    from_agent: bool = False,
 ) -> BaselineAnswer:
     """
-    Default: stable citation-shaped stub. Set BASELINE_GENERATOR=openai and OPENAI_API_KEY
-    for LLM answers (OpenAI-compatible chat/completions).
+    Default: stable citation-shaped stub.
+
+    Set BASELINE_GENERATOR=openai (or AGENT_GENERATOR for agentic generate path)
+    and DEEPSEEK_API_KEY or OPENAI_API_KEY for OpenAI-compatible chat/completions.
     """
     if not chunks:
         return BaselineAnswer(
@@ -94,15 +70,24 @@ def generate_baseline_answer(
         )
 
     context, citations = _format_context(chunks)
-    mode = os.environ.get("BASELINE_GENERATOR", "stub").strip().lower()
 
-    if mode == "openai":
-        try:
-            answer = _openai_chat(query, context)
-            return BaselineAnswer(answer=answer, citations=citations, generator="openai")
-        except (urllib.error.URLError, urllib.error.HTTPError, KeyError, RuntimeError) as e:
-            answer = _stub_answer(query, context) + f"\n\n[openai fallback: {e}]"
-            return BaselineAnswer(answer=answer, citations=citations, generator="stub_fallback")
+    if _use_llm(from_agent=from_agent):
+        system = load_prompt("generate_system")
+        user = f"Question: {query}\n\nContext:\n{context}"
+        text, err = try_openai_chat(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.2,
+            config=config,
+            agent=from_agent,
+        )
+        if text and not err:
+            return BaselineAnswer(answer=text, citations=citations, generator="openai")
+        reason = err or "llm_disabled_or_empty"
+        answer = _stub_answer(query, context) + f"\n\n[openai fallback: {reason}]"
+        return BaselineAnswer(answer=answer, citations=citations, generator="stub_fallback")
 
     answer = _stub_answer(query, context)
     return BaselineAnswer(answer=answer, citations=citations, generator="stub")

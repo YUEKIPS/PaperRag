@@ -1,5 +1,5 @@
 {
-  "version": "m1-draft",
+  "version": "m3-draft",
   "status": "smoke-only — see docs/reports/smoke_m1_baseline.md; no aggregate metrics",
   "timezone": "Asia/Shanghai",
   "questions": [
@@ -32,6 +32,18 @@
       "text": "What should a good answer citation include when answers come from arXiv PDFs?",
       "expected_topics": ["page number", "paper id", "provenance"],
       "notes": "draft"
+    },
+    {
+      "id": "q006",
+      "text": "What is Room-Temperature Zettabyte SRAM latency in pre-Unix punch-card folklore?",
+      "expected_topics": [],
+      "notes": "M3 weak-relevance draft — obscure terms should fail stub overlap and trigger rewrite"
+    },
+    {
+      "id": "q007",
+      "text": "List the hyperbolic fungal embedding loss for Victorian-era mimeograph punch-card parsers.",
+      "expected_topics": [],
+      "notes": "M3 weak-relevance draft for rewrite-loop smoke"
     }
   ]
 }

@@ -4,7 +4,7 @@
 
 与 [RepoAgent](https://github.com/)（代码仓 Agent）互补：RepoAgent 管代码仓库；本项目管 **非代码论文知识库**。
 
-> **当前状态（2026-11-09）**：**M2 Agentic 原型** 已落地 — M1 索引链 + **cross-encoder rerank** + **LangGraph**（grade/rewrite 环）+ `run_agentic` / `eval_all` 定性 smoke。无 Recall@k aggregate；decide 路由与 ColBERT 级 rerank **未** 做。
+> **当前状态（2026-11-09）**：**M3** — M2 之上 **LLM-ready grade/rewrite/generate**（OpenAI-compatible HTTP，默认 DeepSeek 端点示例）+ 外置 `prompts/` + stub 回退。无 Recall@k aggregate；decide 路由学习与 ColBERT 级 rerank **未** 做。
 
 ## 功能模块（目标）
 
@@ -35,17 +35,26 @@ pip install -r requirements.txt
 
 配置见 `configs/default.yaml`。敏感信息放 `.env` 或环境变量（已在 `.gitignore` 中忽略 `.env`）。
 
-### 可选：LLM 生成
+### 可选：LLM（OpenAI-compatible，默认示例 DeepSeek）
 
 ```bash
+# Agentic grade + rewrite + generate（推荐）
+export AGENT_GENERATOR=openai
+export DEEPSEEK_API_KEY=...
+
+# Baseline-only generation（不设 AGENT_GENERATOR 时）
 export BASELINE_GENERATOR=openai
-export OPENAI_API_KEY=sk-...
-# 可选：OPENAI_BASE_URL、OPENAI_MODEL（默认 gpt-4o-mini）
+
+# 也可用 OPENAI_API_KEY；其它兼容端点：
+# export OPENAI_BASE_URL=https://api.deepseek.com/v1   # default in configs/default.yaml
+# export OPENAI_MODEL=deepseek-chat                    # or gpt-4o-mini, etc.
 ```
 
-未设置时 baseline / agentic 使用 **stub**（摘录 + 引用），适合无 API 烟测。
+未设置 key 时节点回退 **stub**（摘录 + 引用）；trace 会记录 `llm_fallback`。适合无 API 烟测。
 
-Agentic 节点优先读 `AGENT_GENERATOR`，否则回退 `BASELINE_GENERATOR`。
+`AGENT_GENERATOR=openai` 表示「兼容 chat/completions LLM」，不是 OpenAI 厂商锁定。Agentic 节点优先读 `AGENT_GENERATOR`，否则回退 `BASELINE_GENERATOR`。
+
+Rewrite 环烟测（无 API）：`run_agentic.py --exercise-rewrite` 或 eval 题 `q006`/`q007`。
 
 ## 快速路径：download → ingest → index → baseline / agentic
 
@@ -72,7 +81,7 @@ python3 scripts/eval_all.py --limit 5
 ```
 
 详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
-Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)。
+Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)、[docs/reports/smoke_m3_llm_agentic.md](docs/reports/smoke_m3_llm_agentic.md)。
 
 ## 仓库布局
 

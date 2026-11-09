@@ -20,3 +20,5 @@ class AgentState(TypedDict, total=False):
     max_loops: int
     trace: list[dict[str, Any]]
     rerank_enabled: bool
+    # When true, stub grade uses stricter token overlap (rewrite-loop smoke without API).
+    exercise_strict_grade: bool

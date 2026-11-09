@@ -4,11 +4,19 @@ import json
 import os
 import urllib.error
 import urllib.request
+from typing import Any
+
+# DeepSeek OpenAI-compatible API (see https://api-docs.deepseek.com/)
+DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
+DEFAULT_CHAT_MODEL = "deepseek-chat"
 
 
 def generator_mode(*, agent: bool = False) -> str:
     """
     Resolve generator backend: stub (default) or openai.
+
+    ``openai`` means any OpenAI-compatible HTTP chat/completions endpoint
+    (DeepSeek, OpenAI, local vLLM, etc.), not vendor lock-in.
     Agentic path checks AGENT_GENERATOR then BASELINE_GENERATOR.
     """
     if agent:
@@ -18,18 +26,51 @@ def generator_mode(*, agent: bool = False) -> str:
     return os.environ.get("BASELINE_GENERATOR", "stub").strip().lower() or "stub"
 
 
+def resolve_api_key() -> str | None:
+    for var in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY"):
+        key = os.environ.get(var, "").strip()
+        if key:
+            return key
+    return None
+
+
+def resolve_base_url(config: dict[str, Any] | None = None) -> str:
+    env = os.environ.get("OPENAI_BASE_URL", "").strip()
+    if env:
+        return env.rstrip("/")
+    if config:
+        llm = config.get("llm") or {}
+        cfg_url = str(llm.get("base_url", "")).strip()
+        if cfg_url:
+            return cfg_url.rstrip("/")
+    return DEFAULT_BASE_URL
+
+
+def resolve_model(config: dict[str, Any] | None = None) -> str:
+    env = os.environ.get("OPENAI_MODEL", "").strip()
+    if env:
+        return env
+    if config:
+        llm = config.get("llm") or {}
+        cfg_model = str(llm.get("model", "")).strip()
+        if cfg_model:
+            return cfg_model
+    return DEFAULT_CHAT_MODEL
+
+
 def openai_chat(
     messages: list[dict[str, str]],
     *,
     temperature: float = 0.2,
     timeout: int = 120,
+    config: dict[str, Any] | None = None,
 ) -> str:
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    api_key = resolve_api_key()
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
+        raise RuntimeError("No API key: set DEEPSEEK_API_KEY or OPENAI_API_KEY")
 
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    base_url = resolve_base_url(config)
+    model = resolve_model(config)
 
     payload = {
         "model": model,
@@ -54,12 +95,29 @@ def try_openai_chat(
     messages: list[dict[str, str]],
     *,
     temperature: float = 0.2,
+    config: dict[str, Any] | None = None,
+    agent: bool = True,
 ) -> tuple[str | None, str | None]:
-    """Return (text, error). On success error is None."""
-    mode = generator_mode(agent=True)
+    """
+    Return (text, error). On success error is None.
+    When mode is stub, returns (None, None) without calling the API.
+    """
+    mode = generator_mode(agent=agent)
     if mode != "openai":
         return None, None
     try:
-        return openai_chat(messages, temperature=temperature), None
+        return openai_chat(messages, temperature=temperature, config=config), None
     except (urllib.error.URLError, urllib.error.HTTPError, KeyError, RuntimeError) as e:
         return None, str(e)
+
+
+def llm_endpoint_summary(config: dict[str, Any] | None = None) -> str:
+    """Non-secret summary for logs and smoke reports."""
+    key = resolve_api_key()
+    key_status = "set" if key else "missing"
+    return (
+        f"mode={generator_mode(agent=True)} "
+        f"base_url={resolve_base_url(config)} "
+        f"model={resolve_model(config)} "
+        f"api_key={key_status}"
+    )

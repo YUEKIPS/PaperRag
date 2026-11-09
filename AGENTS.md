@@ -11,7 +11,7 @@
 
 ## 本轮禁止事项
 
-- 不要声称已完成未实现的模块（尤其生产级 grade/rewrite、ColBERT rerank、Recall@k aggregate）
+- 不要声称已完成未实现的模块（尤其 ColBERT rerank、Recall@k aggregate、学习型 decide）
 - 不要编造评测数字或 dashboard 结果
 - 不要提交 `data/raw_pdfs/*.pdf`、向量库产物、`.env`
 - 不要在日志中粘贴密钥或完整私有对话
@@ -57,6 +57,9 @@
 
 - **M0（本轮）**：文档 + git 基线 + 脚手架 — **已完成**
 - **M1**：解析 / 分块质量、嵌入索引、真实 baseline 生成（LLM 可选）、引用格式
-- **M2**：混合检索 + rerank + LangGraph Agentic 环
+- **M2**：混合检索 + rerank + LangGraph Agentic 环 — **已完成**
+- **M3**：LLM grade/rewrite（DeepSeek 兼容 HTTP）— **已完成**（全 LLM smoke 需 API key）
+
+LLM 环境变量：`AGENT_GENERATOR=openai`、`DEEPSEEK_API_KEY`（或 `OPENAI_API_KEY`）、可选 `OPENAI_BASE_URL` / `OPENAI_MODEL`（见 `configs/default.yaml` `llm`）。
 
 细节见 [docs/plan.md](docs/plan.md)。

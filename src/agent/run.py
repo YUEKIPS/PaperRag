@@ -28,6 +28,7 @@ def run_agentic_query(
     config: dict[str, Any],
     *,
     rerank_enabled: bool | None = None,
+    exercise_strict_grade: bool = False,
 ) -> AgenticResult:
     agent_cfg = config.get("agent", {})
     max_loops = int(agent_cfg.get("max_grade_rewrite_loops", 2))
@@ -42,6 +43,8 @@ def run_agentic_query(
     }
     if rerank_enabled is not None:
         initial["rerank_enabled"] = rerank_enabled
+    if exercise_strict_grade:
+        initial["exercise_strict_grade"] = True
 
     app = build_agent_graph()
     final = app.invoke(initial)

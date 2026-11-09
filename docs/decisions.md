@@ -96,3 +96,13 @@
 - **状态**：已接受（原型）
 - **决策**：`langgraph` 实现 `decide → retrieve → grade → rewrite → generate`；`max_grade_rewrite_loops` 默认 2。Grade/rewrite/generate：默认 **stub**；`AGENT_GENERATOR` 或 `BASELINE_GENERATOR=openai` 时 grade/rewrite 可走 OpenAI 兼容 API（`src/generate/llm.py`）。
 - **后果**：`requirements.txt` 启用 `langgraph` / `langchain-core`；decide 节点暂为透传，非学习型路由。
+
+---
+
+## D-011 — M3 生产向 LLM grade/rewrite（DeepSeek 兼容默认）
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：Grade/rewrite/generate 共用 `src/generate/llm.py` 薄 HTTP 客户端（stdlib `urllib`，`/chat/completions`）。API key 优先 `DEEPSEEK_API_KEY`，回退 `OPENAI_API_KEY`；`OPENAI_BASE_URL` 默认示例为 DeepSeek `https://api.deepseek.com/v1`；模型默认 `deepseek-chat`（`configs/default.yaml` `llm` 段可覆盖）。`AGENT_GENERATOR=openai` 表示「OpenAI 兼容 LLM」而非厂商锁定。系统提示词外置至 `prompts/*.txt`。无 key 或请求失败 → stub 回退，并在 trace 中记录 `llm_fallback`。
+- **背景**：M2 已有最小 LLM 钩子；M3 对齐 RepoAgent  spirit（兼容端点 + 环境变量），不引入 model-config JSON / pydantic v3 配置体系。
+- **后果**：`data/eval/questions.json` 增加弱相关 draft 题；`--exercise-rewrite` / `AGENT_STUB_STRICT_GRADE` 可在无 API 时强制走 rewrite 烟测；LLM 全环 smoke 需用户注入 key。
