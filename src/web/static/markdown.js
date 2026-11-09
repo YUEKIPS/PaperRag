@@ -29,13 +29,46 @@
     return null;
   }
 
+  // marked v14 stores HTML-escaped text on inline tokens (token.text) while
+  // token.raw keeps the source. Text nodes must show the characters, not the entities.
+  function decodeEntities(value) {
+    return String(value ?? "").replace(
+      /&(#x[0-9a-fA-F]+|#\d+|quot|amp|lt|gt|apos);/g,
+      (match, body) => {
+        switch (body) {
+          case "quot":
+            return '"';
+          case "amp":
+            return "&";
+          case "lt":
+            return "<";
+          case "gt":
+            return ">";
+          case "apos":
+            return "'";
+          default: {
+            const hex = body[1] === "x" || body[1] === "X";
+            const cp = hex ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+            if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff) return match;
+            if (cp >= 0xd800 && cp <= 0xdfff) return match;
+            return String.fromCodePoint(cp);
+          }
+        }
+      }
+    );
+  }
+
+  function textNode(value) {
+    return document.createTextNode(decodeEntities(value));
+  }
+
   function appendInlines(parent, tokens) {
     if (!tokens || !tokens.length) return;
     tokens.forEach((tok) => {
       switch (tok.type) {
         case "text":
         case "escape":
-          parent.appendChild(document.createTextNode(tok.text || ""));
+          parent.appendChild(textNode(tok.text || ""));
           break;
         case "strong": {
           const el = document.createElement("strong");
@@ -57,7 +90,7 @@
         }
         case "codespan": {
           const el = document.createElement("code");
-          el.textContent = tok.text || "";
+          el.textContent = decodeEntities(tok.text || "");
           parent.appendChild(el);
           break;
         }
@@ -80,14 +113,14 @@
           break;
         }
         case "image": {
-          const alt = tok.text || tok.alt || "";
+          const alt = decodeEntities(tok.text || tok.alt || "");
           if (alt) parent.appendChild(document.createTextNode(alt));
           break;
         }
         case "html":
           break;
         default:
-          if (tok.text) parent.appendChild(document.createTextNode(tok.text));
+          if (tok.text) parent.appendChild(textNode(tok.text));
           else if (tok.tokens) appendInlines(parent, tok.tokens);
           break;
       }
@@ -204,7 +237,8 @@
       case "html":
         return null;
       case "text":
-        return paragraphEl([{ type: "text", text: token.text }]);
+        if (token.tokens && token.tokens.length) return paragraphEl(token.tokens);
+        return paragraphEl([{ type: "text", text: token.text || "" }]);
       default:
         return null;
     }
