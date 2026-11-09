@@ -53,30 +53,41 @@
         </div>
       </header>
 
-      <div class="messages" id="messages" role="log" aria-live="polite"></div>
+      <div class="main-stage" id="main-stage">
+        <div class="main-chat">
+          <div class="messages" id="messages" role="log" aria-live="polite"></div>
 
-      <div class="progress-dock" id="progress-dock" hidden>
-        <div class="progress-bar"><span class="progress-fill" id="progress-fill"></span></div>
-        <p class="progress-label" id="progress-label">思考中…</p>
-        <ul class="progress-steps" id="progress-steps"></ul>
-      </div>
-
-      <aside class="paper-preview" id="paper-preview" hidden aria-label="论文预览">
-        <header class="paper-preview-header">
-          <div class="paper-preview-title-wrap">
-            <h2 class="paper-preview-title" id="paper-preview-title">论文预览</h2>
-            <p class="paper-preview-id" id="paper-preview-id"></p>
+          <div class="progress-dock" id="progress-dock" hidden>
+            <div class="progress-bar"><span class="progress-fill" id="progress-fill"></span></div>
+            <p class="progress-label" id="progress-label">思考中…</p>
+            <ul class="progress-steps" id="progress-steps"></ul>
           </div>
-          <div class="paper-preview-actions">
-            <button type="button" class="btn btn-primary btn-sm" id="btn-insert-paper-query">插入提问</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-close-paper-preview" aria-label="关闭预览">关闭</button>
-          </div>
-        </header>
-        <div class="paper-preview-body">
-          <p class="paper-preview-empty" id="paper-preview-empty" hidden>本地暂无 PDF，可先运行 download_pdfs.py。</p>
-          <object class="paper-preview-object" id="paper-preview-object" type="application/pdf" title="PDF 预览"></object>
         </div>
-      </aside>
+
+        <aside class="paper-drawer" id="paper-drawer" hidden aria-hidden="true" aria-labelledby="paper-drawer-title">
+          <header class="paper-drawer-header">
+            <div class="paper-drawer-title-wrap">
+              <h2 class="paper-drawer-title" id="paper-drawer-title">论文预览</h2>
+              <p class="paper-drawer-id" id="paper-drawer-id"></p>
+            </div>
+            <div class="paper-drawer-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-insert-paper-query">插入提问</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-close-paper-preview" aria-label="关闭预览">关闭</button>
+            </div>
+          </header>
+          <div class="paper-drawer-toolbar" id="paper-drawer-toolbar" hidden>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-pdf-prev" aria-label="上一页">上一页</button>
+            <span class="paper-drawer-page" id="paper-drawer-page">—</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-pdf-next" aria-label="下一页">下一页</button>
+            <span class="paper-drawer-toolbar-spacer"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-pdf-zoom-out" aria-label="缩小">−</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-pdf-zoom-in" aria-label="放大">+</button>
+          </div>
+          <p class="paper-drawer-empty" id="paper-drawer-empty" hidden>本地暂无 PDF，可先运行 download_pdfs.py。</p>
+          <p class="paper-drawer-status" id="paper-drawer-status" hidden>正在打开 PDF…</p>
+          <div class="paper-drawer-pages" id="paper-drawer-pages"></div>
+        </aside>
+      </div>
 
       <form class="composer" id="composer-form">
         <textarea
@@ -128,6 +139,7 @@
 
   <script src="/static/vendor/marked.umd.js"></script>
   <script src="/static/markdown.js"></script>
+  <script src="/static/pdf-view.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

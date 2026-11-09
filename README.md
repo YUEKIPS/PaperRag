@@ -90,7 +90,7 @@ python3 scripts/serve_web.py
 # 默认 http://127.0.0.1:8765/
 ```
 
-功能：左侧 **对话 / 论文库** 切换（论文列表、本地 PDF 预览、**插入提问** 写入 `[arXiv id]`）；会话列表（持久化在 `data/web/sessions/`，已 gitignore；**右键**重命名 / 归档 / 删除）、Ink/Slate/Sand 主题、composer 进度与分阶段展示、助手回答 **Markdown 渲染**（vendored `marked` + 安全 DOM）、回答详情（grade / rewrite / trace / citations）。API 需页面内注入的 session token；PDF 预览由前端 `fetch` + Bearer 转 Blob（无 URL token）；后端调用 `run_agentic_query`；generate 提示词要求模型输出简洁 Markdown。
+功能：左侧 **对话 / 论文库** 切换（论文列表、点选后右侧抽屉用 vendored **PDF.js** 画布预览、**插入提问** 写入 `[arXiv id]`）；会话列表（持久化在 `data/web/sessions/`，已 gitignore；**右键**重命名 / 归档 / 删除）、Ink/Slate/Sand 主题、composer 进度与分阶段展示、助手回答 **Markdown 渲染**（vendored `marked` + 安全 DOM）、回答详情（grade / rewrite / trace / citations）。API 需页面内注入的 session token；PDF 仍由前端 `fetch` + Bearer 取字节（无 URL token），不使用浏览器 PDF 插件；后端调用 `run_agentic_query`；generate 提示词要求模型输出简洁 Markdown。
 
 详细步骤与引用格式：[docs/guides/ingest.md](docs/guides/ingest.md)。  
 Smoke 记录：[docs/reports/smoke_m1_baseline.md](docs/reports/smoke_m1_baseline.md)、[docs/reports/smoke_m2_agentic.md](docs/reports/smoke_m2_agentic.md)、[docs/reports/smoke_m3_llm_agentic.md](docs/reports/smoke_m3_llm_agentic.md)。

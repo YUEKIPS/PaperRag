@@ -145,4 +145,14 @@
 - **状态**：已接受（MVP）
 - **决策**：侧栏增加「对话 / 论文库」切换；`GET /api/papers` 合并 `configs/default.yaml` `arxiv.paper_ids` 与 `data/raw_pdfs/*.pdf`；可选标题来自 `data/raw_pdfs/{id}.meta.json`（`title` 字段），否则 UI 仅展示 arXiv id。`GET /api/papers/{id}/pdf` 以 `application/pdf` 回传本地文件，复用 `_api_allowed()`（localhost + Bearer / `X-Session-Token`）。前端**不用** URL query token：`fetch` 带 Bearer → `Blob` → `URL.createObjectURL` 注入 `<object type="application/pdf">`，避免 iframe 无法带头与 token 泄漏。主区底部内嵌预览 +「插入提问」向 composer 写入 `关于论文 [id]：` 或追加 `[id]`。侧栏 tab 用下划线文字，不用与「新建对话」并列的描边胶囊。
 - **背景**：用户需在本地浏览 M1 语料、对照 PDF 提问，不拉 arXiv 元数据、不引入 npm/React。初稿误用已占用的 D-014，更正为本条。
-- **后果**：`src/web/papers.py`；`server.py` 增两条 GET；静态 `app.{html,css,js}` 扩展；无网络依赖。
+- **后果**：`src/web/papers.py`；`server.py` 增两条 GET；静态 `app.{html,css,js}` 扩展；无网络依赖。底部 `<object>` 预览已由 D-016 取代。
+
+---
+
+## D-016 — Web UI：右侧抽屉 + PDF.js 画布预览
+
+- **日期**：2026-11-09
+- **状态**：已接受（MVP）
+- **决策**：点选论文库条目时，主区右侧滑出抽屉（可关闭、Esc 关闭），不再把浏览器 PDF 插件嵌在对话下方。PDF 仍由 `GET /api/papers/{id}/pdf` + Bearer 取回字节，交给 vendored PDF.js 4.8.69（`src/web/static/vendor/pdfjs/`，`pdf.min.mjs` + worker）画到 canvas。翻页与缩放用自有工具条，不用系统插件工具条。抽屉只盖住消息区右侧；底栏 composer 保持在抽屉之外，插入提问后可直接输入。关闭抽屉时焦点回到输入框。
+- **背景**：底部半屏 `<object type="application/pdf">` 会拉起 Chrome 自带插件（深色工具条），阅读区过矮。
+- **后果**：静态多 `pdf-view.js` 与 PDF.js vendor（Apache-2.0）；`.mjs` 以 `text/javascript` 提供给 module worker。不拉 arXiv，不引入 npm 构建。

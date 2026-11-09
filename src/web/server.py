@@ -20,6 +20,22 @@ from src.web.sessions import SessionStore
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 API_PREFIX = "/api"
+_STATIC_MIME = {
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".html": "text/html",
+    ".wasm": "application/wasm",
+}
+
+
+def _static_content_type(file_path: Path) -> str:
+    """JS module workers (PDF.js .mjs) must not be served as octet-stream."""
+    override = _STATIC_MIME.get(file_path.suffix.lower())
+    if override:
+        return override
+    ctype, _ = mimetypes.guess_type(str(file_path))
+    return ctype or "application/octet-stream"
 
 
 class PaperRagHTTPServer(ThreadingHTTPServer):
@@ -109,11 +125,11 @@ class PaperRagHandler(BaseHTTPRequestHandler):
         if not file_path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        ctype, _ = mimetypes.guess_type(str(file_path))
-        ctype = ctype or "application/octet-stream"
+        ctype = _static_content_type(file_path)
         data = file_path.read_bytes()
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", f"{ctype}; charset=utf-8" if ctype.startswith("text/") else ctype)
+        header_type = f"{ctype}; charset=utf-8" if ctype.startswith("text/") else ctype
+        self.send_header("Content-Type", header_type)
         self.send_header("Content-Length", str(len(data)))
         # Localhost-only UI: avoid stale JS/CSS during rapid iteration (HTML already no-store).
         self.send_header("Cache-Control", "no-store")

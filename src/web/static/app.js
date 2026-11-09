@@ -44,11 +44,18 @@
     panelSessions: document.getElementById("panel-sessions"),
     panelPapers: document.getElementById("panel-papers"),
     paperList: document.getElementById("paper-list"),
-    paperPreview: document.getElementById("paper-preview"),
-    paperPreviewTitle: document.getElementById("paper-preview-title"),
-    paperPreviewId: document.getElementById("paper-preview-id"),
-    paperPreviewObject: document.getElementById("paper-preview-object"),
-    paperPreviewEmpty: document.getElementById("paper-preview-empty"),
+    paperDrawer: document.getElementById("paper-drawer"),
+    paperDrawerTitle: document.getElementById("paper-drawer-title"),
+    paperDrawerId: document.getElementById("paper-drawer-id"),
+    paperDrawerEmpty: document.getElementById("paper-drawer-empty"),
+    paperDrawerStatus: document.getElementById("paper-drawer-status"),
+    paperDrawerToolbar: document.getElementById("paper-drawer-toolbar"),
+    paperDrawerPage: document.getElementById("paper-drawer-page"),
+    paperPages: document.getElementById("paper-drawer-pages"),
+    btnPdfPrev: document.getElementById("btn-pdf-prev"),
+    btnPdfNext: document.getElementById("btn-pdf-next"),
+    btnPdfZoomIn: document.getElementById("btn-pdf-zoom-in"),
+    btnPdfZoomOut: document.getElementById("btn-pdf-zoom-out"),
     btnInsertPaperQuery: document.getElementById("btn-insert-paper-query"),
     btnClosePaperPreview: document.getElementById("btn-close-paper-preview"),
   };
@@ -66,7 +73,7 @@
   let contextMenuSessionId = null;
   let papersCatalog = [];
   let selectedPaperId = null;
-  let pdfObjectUrl = null;
+  let previewGen = 0;
   let sidebarMode = "sessions";
 
   function api(path, options = {}) {
@@ -222,14 +229,39 @@
     return res.blob();
   }
 
-  function revokePdfObjectUrl() {
-    if (pdfObjectUrl) {
-      URL.revokeObjectURL(pdfObjectUrl);
-      pdfObjectUrl = null;
-    }
-    if (els.paperPreviewObject) {
-      els.paperPreviewObject.data = "";
-    }
+  function resetPdfSurface() {
+    if (window.PaperPdfView) window.PaperPdfView.clear();
+    if (els.paperPages) els.paperPages.innerHTML = "";
+    if (els.paperDrawerToolbar) els.paperDrawerToolbar.hidden = true;
+    if (els.paperDrawerStatus) els.paperDrawerStatus.hidden = true;
+    if (els.paperDrawerPage) els.paperDrawerPage.textContent = "—";
+  }
+
+  function revealPaperDrawer() {
+    const drawer = els.paperDrawer;
+    if (!drawer) return;
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    els.mainPane.classList.add("drawer-open");
+    requestAnimationFrame(() => drawer.classList.add("is-open"));
+  }
+
+  function concealPaperDrawer() {
+    const drawer = els.paperDrawer;
+    if (!drawer || drawer.hidden) return;
+    drawer.classList.remove("is-open");
+    drawer.setAttribute("aria-hidden", "true");
+    els.mainPane.classList.remove("drawer-open");
+    const finish = () => {
+      if (!drawer.classList.contains("is-open")) drawer.hidden = true;
+    };
+    const onEnd = (event) => {
+      if (event.target !== drawer || event.propertyName !== "transform") return;
+      drawer.removeEventListener("transitionend", onEnd);
+      finish();
+    };
+    drawer.addEventListener("transitionend", onEnd);
+    setTimeout(finish, 320);
   }
 
   function setSidebarTab(mode) {
@@ -338,41 +370,65 @@
   }
 
   function closePaperPreview() {
-    revokePdfObjectUrl();
+    previewGen += 1;
+    resetPdfSurface();
     selectedPaperId = null;
-    els.paperPreview.hidden = true;
-    els.mainPane.classList.remove("main--paper-preview");
+    if (els.paperDrawerEmpty) els.paperDrawerEmpty.hidden = true;
+    concealPaperDrawer();
     renderPaperList();
+    if (els.queryInput) els.queryInput.focus();
+  }
+
+  function showDrawerMessage(which, text) {
+    if (els.paperDrawerEmpty) {
+      els.paperDrawerEmpty.hidden = which !== "empty";
+      if (which === "empty" && text) els.paperDrawerEmpty.textContent = text;
+    }
+    if (els.paperDrawerStatus) {
+      els.paperDrawerStatus.hidden = which !== "status";
+      if (which === "status" && text) els.paperDrawerStatus.textContent = text;
+    }
   }
 
   async function openPaperPreview(paper) {
+    const gen = ++previewGen;
     selectedPaperId = paper.id;
     renderPaperList();
-    els.paperPreview.hidden = false;
-    els.mainPane.classList.add("main--paper-preview");
+    revealPaperDrawer();
     const label = paperDisplayTitle(paper);
-    els.paperPreviewTitle.textContent = label;
-    els.paperPreviewId.textContent = paper.id;
+    els.paperDrawerTitle.textContent = label;
+    els.paperDrawerId.textContent = paper.id;
     els.btnInsertPaperQuery.disabled = false;
+    resetPdfSurface();
 
     if (!paper.has_pdf) {
-      els.paperPreviewEmpty.hidden = false;
-      els.paperPreviewObject.hidden = true;
-      revokePdfObjectUrl();
+      showDrawerMessage("empty", "本地暂无 PDF，可先运行 download_pdfs.py。");
       return;
     }
 
-    els.paperPreviewEmpty.hidden = true;
-    els.paperPreviewObject.hidden = false;
-    revokePdfObjectUrl();
+    showDrawerMessage("status", "正在打开 PDF…");
     try {
       const blob = await fetchPaperPdf(paper.id);
-      pdfObjectUrl = URL.createObjectURL(blob);
-      els.paperPreviewObject.data = pdfObjectUrl;
+      if (gen !== previewGen) return;
+      const buffer = await blob.arrayBuffer();
+      if (gen !== previewGen) return;
+      if (!window.PaperPdfView) throw new Error("PDF 查看器未加载");
+      await window.PaperPdfView.show(buffer, els.paperPages, {
+        onChange(info) {
+          if (!els.paperDrawerPage) return;
+          const total = info.total || 0;
+          els.paperDrawerPage.textContent = total ? `${info.page} / ${total}` : "—";
+          if (els.btnPdfPrev) els.btnPdfPrev.disabled = info.page <= 1;
+          if (els.btnPdfNext) els.btnPdfNext.disabled = !total || info.page >= total;
+        },
+      });
+      if (gen !== previewGen) return;
+      showDrawerMessage("none");
+      if (els.paperDrawerToolbar) els.paperDrawerToolbar.hidden = false;
     } catch (e) {
-      els.paperPreviewEmpty.hidden = false;
-      els.paperPreviewEmpty.textContent = `无法加载 PDF：${e.message || e}`;
-      els.paperPreviewObject.hidden = true;
+      if (gen !== previewGen) return;
+      resetPdfSurface();
+      showDrawerMessage("empty", `无法加载 PDF：${e.message || e}`);
     }
   }
 
@@ -937,6 +993,25 @@
       insertPaperIntoComposer(selectedPaperId);
     });
   }
+  if (els.btnPdfPrev) {
+    els.btnPdfPrev.addEventListener("click", () => window.PaperPdfView && window.PaperPdfView.go(-1));
+  }
+  if (els.btnPdfNext) {
+    els.btnPdfNext.addEventListener("click", () => window.PaperPdfView && window.PaperPdfView.go(1));
+  }
+  if (els.btnPdfZoomIn) {
+    els.btnPdfZoomIn.addEventListener("click", () => window.PaperPdfView && window.PaperPdfView.zoomBy(0.15));
+  }
+  if (els.btnPdfZoomOut) {
+    els.btnPdfZoomOut.addEventListener("click", () => window.PaperPdfView && window.PaperPdfView.zoomBy(-0.15));
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!els.paperDrawer || els.paperDrawer.hidden) return;
+    if (document.querySelector("dialog[open]")) return;
+    event.preventDefault();
+    closePaperPreview();
+  });
   els.inspectorClose.addEventListener("click", () => els.inspector.close());
   els.inspector.addEventListener("click", (e) => {
     if (e.target === els.inspector) els.inspector.close();
