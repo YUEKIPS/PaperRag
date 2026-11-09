@@ -15,12 +15,12 @@
 
 ### M1 — 可演示的 Baseline RAG
 
-- [ ] PyMuPDF 解析质量抽检（公式 / 多栏 — 按论文抽样）
-- [ ] 嵌入模型 + FAISS（或等价）向量索引
-- [ ] 可选：BM25 并行索引与 RRF 原型
-- [ ] `run_baseline` 接 LLM（环境变量配置）或稳定本地 stub 策略
-- [ ] 引用格式文档化 + 5 题 smoke eval（**记录过程，不编造 aggregate 分数**）
-- [ ] `docs/guides/ingest.md` 操作说明
+- [x] PyMuPDF 解析：12 篇 ingest 烟测（2695 chunks）；公式 / 多栏未做专项抽检
+- [x] 嵌入模型 `all-MiniLM-L6-v2` + FAISS 向量索引（`data/index/`，gitignore）
+- [x] BM25 侧车 + 检索时 RRF 原型（`index.hybrid.enabled: true`）
+- [x] `run_baseline`：dense/hybrid 检索 + stub 默认；`BASELINE_GENERATOR=openai` 可选 LLM
+- [x] 引用格式 + 5 题 smoke（见 `docs/reports/smoke_m1_baseline.md`，无 aggregate 分数）
+- [x] `docs/guides/ingest.md` 操作说明
 
 ### M2 — Agentic + 混合检索强化
 

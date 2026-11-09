@@ -32,10 +32,11 @@ ingest:
   # parser: pymupdf  # M1
 
 index:
-  # embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  embed_batch_size: 32
   hybrid:
-    enabled: false  # BM25 + vector + RRF — M2+
-  vector_store: local  # placeholder
+    enabled: true  # M1 prototype: BM25 corpus sidecar + RRF at retrieve time
+  vector_store: faiss
 
 retriever:
   top_k: 10

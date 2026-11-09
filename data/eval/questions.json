@@ -1,6 +1,6 @@
 {
-  "version": "draft",
-  "status": "placeholder — not used for reported metrics",
+  "version": "m1-draft",
+  "status": "smoke-only — see docs/reports/smoke_m1_baseline.md; no aggregate metrics",
   "timezone": "Asia/Shanghai",
   "questions": [
     {

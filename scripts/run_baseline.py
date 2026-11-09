@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -30,12 +31,16 @@ def main() -> int:
 
     config = load_config(args.config)
     index_dir = resolve_path(config, "index")
-    index_path = index_dir / "chunks_index.jsonl"
-    if not index_path.exists():
-        print(f"Missing index at {index_path}. Run build_index.py first.", file=sys.stderr)
+    manifest_path = index_dir / "manifest.json"
+    if not manifest_path.exists():
+        print(f"Missing index manifest at {manifest_path}. Run build_index.py first.", file=sys.stderr)
         return 1
 
-    top_k = int(config.get("baseline", {}).get("max_context_chunks", 5))
+    top_k = int(
+        config.get("baseline", {}).get(
+            "max_context_chunks", config.get("retriever", {}).get("top_k", 5)
+        )
+    )
 
     queries: list[str] = []
     if args.query:
@@ -50,10 +55,15 @@ def main() -> int:
         print("Provide --query or a valid eval file.", file=sys.stderr)
         return 1
 
+    gen_mode = os.environ.get("BASELINE_GENERATOR", "stub")
+    print(f"Generator mode: {gen_mode}", file=sys.stderr)
+
     for q in queries:
-        chunks = retrieve_baseline(q, index_path, top_k=top_k)
+        chunks = retrieve_baseline(q, index_dir, top_k=top_k)
         answer = generate_baseline_answer(q, chunks)
         print("=" * 60)
+        print(f"Query: {q}")
+        print(f"Retriever: top_k={top_k}, hits={len(chunks)}, generator={answer.generator}")
         print(answer.answer)
         print("Citations:", json.dumps(answer.citations, ensure_ascii=False, indent=2))
 

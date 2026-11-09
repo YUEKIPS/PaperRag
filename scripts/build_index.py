@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build minimal JSONL index from processed chunks."""
+"""Build FAISS dense index (and optional BM25 sidecar) from processed chunks."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from src.indexer.build import build_index_from_processed  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build retrieval index (scaffold).")
+    parser = argparse.ArgumentParser(description="Build FAISS retrieval index.")
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "configs" / "default.yaml")
     args = parser.parse_args()
 

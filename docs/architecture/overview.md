@@ -17,13 +17,13 @@ flowchart LR
   Gen --> Ans[Answer + citations]
 ```
 
-## 当前实现（M0 脚手架）
+## 当前实现（M1 Baseline）
 
-- **Parser**：`src/parser/pdf_parser.py`（PyMuPDF）
-- **Indexer**：分块 + JSONL 合并（无向量）
-- **Retriever**：`retriever/baseline.py` 关键词 overlap
-- **Generator**：`generate/baseline.py` stub
-- **Orchestrator / Rerank / Agentic**：空模块或脚本 stub
+- **Parser**：`src/parser/pdf_parser.py`（PyMuPDF，页文本 + 固定字符分块）
+- **Indexer**：`src/indexer/build.py` — sentence-transformers 嵌入 + FAISS；可选 BM25 侧车
+- **Retriever**：`retriever/baseline.py` — 稠密 FAISS；`hybrid.enabled` 时 BM25 + RRF
+- **Generator**：`generate/baseline.py` — 默认 stub；可选 OpenAI 兼容 chat API
+- **Orchestrator / Rerank / Agentic**：`scripts/run_agentic.py` 等仍为 M2 stub
 
 ## 配置与入口
 

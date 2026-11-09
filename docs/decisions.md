@@ -35,10 +35,39 @@
 ## D-004 — 脚手架索引用 JSONL
 
 - **日期**：2026-11-09
-- **状态**：已接受（临时）
+- **状态**：**已由 D-006 取代**（M1）
 - **决策**：M0 索引为合并 JSONL + manifest，检索用语义弱的关键词 overlap。
 - **背景**：先验证 ingest 链路与引用结构，再换向量索引。
-- **后果**：M1 必须替换 `build_index` / `retrieve_baseline` 实现；manifest 字段预留 `embedding_model`。
+- **后果**：M1 已替换 `build_index` / `retrieve_baseline`；遗留 `scaffold_jsonl` manifest 仍走关键词回退。
+
+---
+
+## D-006 — M1 嵌入与 FAISS 索引
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：Baseline 稠密检索使用 `sentence-transformers/all-MiniLM-L6-v2`（384 维），FAISS `IndexFlatIP` + L2 归一化向量；chunk 元数据与行序对齐的 `chunks_index.jsonl`。
+- **背景**：CPU 友好、体量小，适合 12 篇论文 smoke；可在 M2 前再评估更大模型。
+- **后果**：`requirements.txt` 启用 `sentence-transformers` / `faiss-cpu`；索引产物仅本地 `data/index/`。
+
+---
+
+## D-007 — M1 混合检索原型
+
+- **日期**：2026-11-09
+- **状态**：已接受（原型）
+- **决策**：`build_index` 写入 BM25 分词侧车；`retrieve_baseline` 在 `hybrid.enabled` 时对 dense + BM25 做 RRF（k=60）。
+- **背景**：验证混合检索接线，非生产级调参。
+- **后果**：M2 可替换为独立 `retriever/hybrid.py`、调 pool size 与 rerank。
+
+---
+
+## D-008 — Baseline 生成策略
+
+- **日期**：2026-11-09
+- **状态**：已接受
+- **决策**：默认 **stub** 生成（摘录 + 页码引用）；可选 `BASELINE_GENERATOR=openai` + `OPENAI_API_KEY` 调用 OpenAI 兼容 `chat/completions`（stdlib `urllib`，无强制 openai 包）。
+- **后果**：未配置 API 时 smoke 不依赖外网 LLM；文档须标明当前 generator 模式。
 
 ---
 
